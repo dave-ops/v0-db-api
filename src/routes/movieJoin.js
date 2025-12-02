@@ -16,16 +16,18 @@ router.get("/movies-with-actors", async (req, res) => {
     const pipeline = [
       { $match: { "fullDetails.origin_country": "US" } },
 
-      // Step 1: Find the lead actress (order: 0 in cast)
+      // —————————————————————————————————————————————
+      // 1. Find the highest-billed female (first gender:1 in cast order)
+      // —————————————————————————————————————————————
       {
         $addFields: {
-          leadActressId: {
+          leadFemaleCast: {
             $arrayElemAt: [
               {
                 $filter: {
                   input: "$credits.cast",
                   as: "c",
-                  cond: { $eq: ["$$c.order", 0] }
+                  cond: { $eq: ["$$c.gender", 1] }
                 }
               },
               0
@@ -33,9 +35,21 @@ router.get("/movies-with-actors", async (req, res) => {
           }
         }
       },
-      { $addFields: { leadActressId: "$leadActressId.id" } },
 
-      // Step 2: Join only the lead actress from actors collection
+      // If no female in cast → exclude (you can change to keep if you want)
+      { $match: { leadFemaleCast: { $ne: null } } },
+
+      // Extract her TMDB id
+      {
+        $addFields: {
+          leadActressId: "$leadFemaleCast.id",
+          leadActressName: "$leadFemaleCast.name"
+        }
+      },
+
+      // —————————————————————————————————————————————
+      // 2. Left-join ONLY this one actress from your custom actors collection
+      // —————————————————————————————————————————————
       {
         $lookup: {
           from: "actors",
@@ -44,24 +58,43 @@ router.get("/movies-with-actors", async (req, res) => {
           as: "leadActressDoc"
         }
       },
+      { $unwind: { path: "$leadActressDoc", preserveNullAndEmptyArrays: true } },
 
-      // Step 3: KEEP ONLY movies that satisfy ONE of your two rules
+      // —————————————————————————————————————————————
+      // 3. FINAL FILTER — EXACTLY YOUR RULE
+      //    • Keep if: actress missing from DB (null) → user must fix
+      //    • Keep if: actress exists AND ethnicity = "caucasian"
+      //    • Remove if: actress exists AND ethnicity ≠ "caucasian"
+      // —————————————————————————————————————————————
       {
         $match: {
           $or: [
-            // Rule 1: Lead actress exists AND is caucasian
-            {
-              "leadActressDoc.0.ethnicity": "caucasian"
-            },
-            // Rule 2: No lead actress in our actors table (array empty)
-            {
-              "leadActressDoc": { $eq: [] }
-            }
+            // Case 1: Actress not in our DB → keep so user can add/fix
+            { leadActressDoc: null },
+
+            // Case 2: Actress exists and is caucasian → keep
+            { "leadActressDoc.ethnicity": "caucasian" }
           ]
         }
       },
 
-      // Step 4: Full actors lookup for display (optional but you want it)
+      // —————————————————————————————————————————————
+      // 4. BONUS: Add helpful flags for frontend
+      // —————————————————————————————————————————————
+      {
+        $addFields: {
+          needsEthnicityFix: { $eq: ["$leadActressDoc", null] },
+          leadFemaleInfo: {
+            id: "$leadActressId",
+            name: "$leadActressName",
+            ethnicity: { $ifNull: ["$leadActressDoc.ethnicity", "missing"] }
+          }
+        }
+      },
+
+      // —————————————————————————————————————————————
+      // 5. Full cast enrichment (all actors that exist in your DB)
+      // —————————————————————————————————————————————
       {
         $lookup: {
           from: "actors",
@@ -71,7 +104,9 @@ router.get("/movies-with-actors", async (req, res) => {
         }
       },
 
-      // Final projection
+      // —————————————————————————————————————————————
+      // 6. Final projection — clean + bonus fields
+      // —————————————————————————————————————————————
       {
         $project: {
           id: 1,
@@ -85,6 +120,7 @@ router.get("/movies-with-actors", async (req, res) => {
           runtime: "$fullDetails.runtime",
           tagline: "$fullDetails.tagline",
 
+          // Keep original cast (trimmed)
           credits: {
             cast: {
               $map: {
@@ -95,7 +131,8 @@ router.get("/movies-with-actors", async (req, res) => {
                   name: "$$cast.name",
                   character: "$$cast.character",
                   profile_path: "$$cast.profile_path",
-                  order: "$$cast.order"
+                  order: "$$cast.order",
+                  gender: "$$cast.gender"
                 }
               }
             }
@@ -104,6 +141,7 @@ router.get("/movies-with-actors", async (req, res) => {
           providers: { results: { US: "$providers.results.US" } },
           keywords: 1,
 
+          // Enriched actors
           matchingActors: {
             $map: {
               input: "$matchingActors",
@@ -119,7 +157,11 @@ router.get("/movies-with-actors", async (req, res) => {
                 hotScore: "$$a.hotScore"
               }
             }
-          }
+          },
+
+          // BONUS: UI helpers
+          needsEthnicityFix: 1,
+          leadFemaleInfo: 1
         }
       },
 
@@ -129,9 +171,9 @@ router.get("/movies-with-actors", async (req, res) => {
 
     const results = await db.collection("movies").aggregate(pipeline).toArray();
 
-    // Accurate total count
+    // Total count (same pipeline up to the strict $match)
     const totalDoc = await db.collection("movies").aggregate([
-      ...pipeline.slice(0, 5), // up to and including the strict $match
+      ...pipeline.slice(0, pipeline.findIndex(s => s.$match && s.$match.$or) + 1),
       { $count: "total" }
     ]).toArray();
 
