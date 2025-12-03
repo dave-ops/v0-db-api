@@ -1,6 +1,10 @@
-// file: C:\_dev\repos\v0-dev\v0-db-api\src\batch_jobs\movieJob.js
+// file: C:\_dev\repos\v0-db-api\src\batch_jobs\movieJob.js
 const axios = require("axios");
 const clientPromise = require("../config/db");
+const { v4: uuidv4 } = require("uuid");
+const sharp = require("sharp");
+const fs = require("fs");
+const path = require("path");
 require("dotenv").config();
 
 const TMDB_API_KEY =
@@ -10,6 +14,18 @@ const TMDB_BASE_URL =
 const BATCH_SIZE = parseInt(process.env.BATCH_SIZE) || 100;
 // Increase MAX_PAGES to fetch more movies, or set to a very high number to attempt fetching all
 const MAX_PAGES = parseInt(process.env.MAX_PAGES) || 1000; // Adjusted to fetch more pages
+const IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500"; // Base URL for movie poster images
+const IMAGE_STORAGE_PATH = process.env.IMAGE_STORAGE_PATH || "./images"; // Base path for storing images
+
+const ctr = {
+  cur: 0,
+  ttl: 0,
+};
+
+// Ensure the base image storage directory exists
+if (!fs.existsSync(IMAGE_STORAGE_PATH)) {
+  fs.mkdirSync(IMAGE_STORAGE_PATH, { recursive: true });
+}
 
 async function fetchMovies(page) {
   try {
@@ -78,6 +94,70 @@ async function processMovies(movies) {
   return detailedMovies;
 }
 
+async function processAndSaveImage(posterPath) {
+  ctr.cur++;
+
+  if (!posterPath) return null;
+
+  const originalUrl = `${IMAGE_BASE_URL}${posterPath}`;
+  console.log(`${ctr.cur} processing ${originalUrl}`);
+
+  const uuid = uuidv4();
+  const firstChar = uuid.charAt(0);
+  const folderPath = path.join(IMAGE_STORAGE_PATH, firstChar);
+  const fileExtension = ".webp"; // Using WebP for fastest loading
+  const newFileName = `${uuid}${fileExtension}`;
+  const filePath = path.join(folderPath, newFileName);
+
+  try {
+    // Check if the image URL has already been processed
+    const client = await clientPromise;
+    const db = client.db("maga-movies");
+    const imageCollection = db.collection("images");
+    const existingImage = await imageCollection.findOne({ originalUrl });
+
+    if (existingImage) {
+      console.log(`Image already processed for ${originalUrl}, skipping.`);
+      return {
+        originalUrl,
+        newFileName: existingImage.newFileName,
+        path: existingImage.path,
+        uuid: existingImage.uuid,
+      };
+    }
+
+    // Create folder if it doesn't exist
+    if (!fs.existsSync(folderPath)) {
+      fs.mkdirSync(folderPath, { recursive: true });
+    }
+
+    // Fetch the image
+    const response = await axios.get(originalUrl, {
+      responseType: "arraybuffer",
+    });
+    const imageBuffer = Buffer.from(response.data, "binary");
+
+    // Resize to 100px wide, maintain aspect ratio, and convert to WebP
+    const resizedImageBuffer = await sharp(imageBuffer)
+      .resize({ width: 100, withoutEnlargement: true })
+      .webp({ quality: 80 })
+      .toBuffer();
+
+    // Save the image to the filesystem
+    fs.writeFileSync(filePath, resizedImageBuffer);
+
+    return {
+      originalUrl,
+      newFileName,
+      path: filePath,
+      uuid,
+    };
+  } catch (error) {
+    console.error(`Error processing image for ${originalUrl}:`, error.message);
+    return null;
+  }
+}
+
 async function saveToMongoDB(
   movies,
   dbName = "maga-movies",
@@ -86,14 +166,40 @@ async function saveToMongoDB(
   try {
     const client = await clientPromise;
     const db = client.db(dbName);
-    const collection = db.collection(collName);
+    const movieCollection = db.collection(collName);
+    const imageCollection = db.collection("images");
 
     for (const movie of movies) {
-      await collection.updateOne(
+      // Save movie data
+      await movieCollection.updateOne(
         { id: movie.id },
         { $set: movie },
         { upsert: true }
       );
+
+      // Process and save poster image if available
+      if (movie.poster_path) {
+        const imageData = await processAndSaveImage(movie.poster_path);
+        if (imageData) {
+          await imageCollection.updateOne(
+            { originalUrl: imageData.originalUrl },
+            {
+              $set: {
+                originalUrl: imageData.originalUrl,
+                newFileName: imageData.newFileName,
+                path: imageData.path,
+                uuid: imageData.uuid,
+                movieId: movie.id,
+                lastUpdated: new Date(),
+              },
+            },
+            { upsert: true }
+          );
+          console.log(
+            `Saved image data for movie ${movie.id} to images collection`
+          );
+        }
+      }
     }
     console.log(`Saved ${movies.length} movies to MongoDB`);
   } catch (error) {

@@ -16,6 +16,8 @@ router.get("/movies-with-actors", async (req, res) => {
 
     const pipeline = [
       { $match: { "fullDetails.origin_country": "US" } },
+      { $match: { poster_path: { $ne: null } } }, // Added filter for non-null poster_path
+      { $match: { release_date: { $lt: new Date().toISOString().split('T')[0] } } },
 
       // Find the highest-billed female (first gender:1 in cast order)
       {
@@ -27,7 +29,7 @@ router.get("/movies-with-actors", async (req, res) => {
                   input: "$credits.cast",
                   as: "c",
                   cond: { $eq: ["$$c.gender", 1] }
-                }
+                },
               },
               0
             ]
@@ -80,7 +82,9 @@ router.get("/movies-with-actors", async (req, res) => {
           leadFemaleInfo: {
             id: "$leadActressId",
             name: "$leadActressName",
-            ethnicity: { $ifNull: ["$leadActressDoc.ethnicity", "missing"] }
+            ethnicity: { $ifNull: ["$leadActressDoc.ethnicity", null] },
+            hot_score: { $ifNull: ["$leadActressDoc.hotScore", null] },
+            hair_color: { $ifNull: ["$leadActressDoc.hairColor", null] }
           }
         }
       },
@@ -119,11 +123,13 @@ router.get("/movies-with-actors", async (req, res) => {
         }
       },
 
+      { $sort: { release_date: -1 } },   // -1 = descending → newest first
       { $skip: skip },
       { $limit: limit }
     ];
 
     const results = await db.collection("movies").aggregate(pipeline).toArray();
+
 
     // Total count (same pipeline up to the strict $match)
     const totalDoc = await db.collection("movies").aggregate([
