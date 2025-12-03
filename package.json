@@ -6,7 +6,8 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "batch:movie": "node src/batch_jobs/movieJob.js",
-    "batch:country": "node src/batch_jobs/countryJob.js"
+    "batch:country": "node src/batch_jobs/countryJob.js",
+    "db:create_view": "node mongodb/views/movies_with_actors.cjs"
   },
   "dependencies": {
     "axios": "^1.6.2",
