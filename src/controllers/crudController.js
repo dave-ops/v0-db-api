@@ -166,4 +166,30 @@ const deleteOne = async (req, res) => {
   }
 };
 
-module.exports = { createOne, find, updateOne, deleteOne };
+const upsertUserSettings = async (req, res) => {
+    const { database, collection } = req.params;
+    const data = req.body;
+    const walletAddress = data.id;
+
+    if (!walletAddress) {
+        res.status(400).json({ error: "Wallet address (id) is required" });
+        return;
+    }
+
+    const coll = await getDbCollection(database, collection);
+    const result = await coll.updateOne(
+        { id: walletAddress },
+        { $set: data },
+        { upsert: true }
+    );
+
+    res.status(200).json({
+        matchedCount: result.matchedCount,
+        modifiedCount: result.modifiedCount,
+        upsertedId: result.upsertedId,
+        settings: data
+    });
+};
+
+// Add to exports
+module.exports = { createOne, find, updateOne, deleteOne, upsertUserSettings };

@@ -1,6 +1,6 @@
 const express = require('express');
 const { validateRequest } = require('../middleware/validate');
-const { createOne, find, updateOne, deleteOne } = require('../controllers/crudController');
+const { createOne, find, updateOne, deleteOne, upsertUserSettings } = require('../controllers/crudController');
 
 const router = express.Router({ mergeParams: true });
 
@@ -17,5 +17,7 @@ router.put('/:id', validateRequest, updateOne);
 
 // DELETE /api/users/myapp/abc123
 router.delete('/:id', validateRequest, deleteOne);
+
+router.post('/upsert', validateRequest, upsertUserSettings);
 
 module.exports = router;
