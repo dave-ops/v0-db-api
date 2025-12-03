@@ -3,12 +3,14 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const auth = require("./middleware/auth");
+const banCheck = require("./middleware/banCheck");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const logger = require("./middleware/logger");
 const crudRoutes = require("./routes/crud");
 const movieJoinRoutes = require("./routes/movieJoin");
 const countryRoutes = require("./routes/countryRoutes");
+const banRoutes = require("./routes/banRoutes");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -27,6 +29,7 @@ const limiter = rateLimit({
   max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100,
 });
 app.use("/api/", limiter);
+app.use("/api/", banCheck); // Add ban check middleware before auth
 app.use("/api/", auth);
 
 // Logger middleware for all routes
@@ -36,6 +39,7 @@ app.use(express.json({ limit: "10mb" }));
 
 // Routes
 app.use("/api/:database/:collection", crudRoutes);
+app.use("/api/:database/:collection", banRoutes); // Add ban routes
 app.use("/api", movieJoinRoutes);
 app.use("/api", countryRoutes);
 
