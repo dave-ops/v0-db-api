@@ -5,6 +5,7 @@ const cors = require("cors");
 const auth = require("./middleware/auth");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
+const logger = require("./middleware/logger");
 const crudRoutes = require("./routes/crud");
 const movieJoinRoutes = require("./routes/movieJoin");
 const countryRoutes = require("./routes/countryRoutes");
@@ -27,6 +28,9 @@ const limiter = rateLimit({
 });
 app.use("/api/", limiter);
 app.use("/api/", auth);
+
+// Logger middleware for all routes
+app.use(logger);
 
 app.use(express.json({ limit: "10mb" }));
 

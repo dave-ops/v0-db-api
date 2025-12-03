@@ -5,16 +5,18 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "batch:movie": "node src/batch_jobs/movieJob.js"
+    "batch:movie": "node src/batch_jobs/movieJob.js",
+    "batch:country": "node src/batch_jobs/countryJob.js"
   },
   "dependencies": {
     "axios": "^1.6.2",
-    "express": "^4.18.2",
-    "mongodb": "^6.8.0",
-    "dotenv": "^16.3.1",
     "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
     "helmet": "^7.1.0",
-    "express-rate-limit": "^7.1.5"
+    "mongodb": "^6.8.0",
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
