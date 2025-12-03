@@ -1,9 +1,10 @@
-// src/routes/movieJoin.js
+// file: C:\_dev\repos\v0-db-api\src\routes\movieJoin.js
 const express = require("express");
 const clientPromise = require("../config/db");
 
 const router = express.Router();
 
+// Endpoint for movie card data (minimal data for grid view)
 router.get("/movies-with-actors", async (req, res) => {
   try {
     const client = await clientPromise;
@@ -16,9 +17,7 @@ router.get("/movies-with-actors", async (req, res) => {
     const pipeline = [
       { $match: { "fullDetails.origin_country": "US" } },
 
-      // —————————————————————————————————————————————
-      // 1. Find the highest-billed female (first gender:1 in cast order)
-      // —————————————————————————————————————————————
+      // Find the highest-billed female (first gender:1 in cast order)
       {
         $addFields: {
           leadFemaleCast: {
@@ -47,9 +46,7 @@ router.get("/movies-with-actors", async (req, res) => {
         }
       },
 
-      // —————————————————————————————————————————————
-      // 2. Left-join ONLY this one actress from your custom actors collection
-      // —————————————————————————————————————————————
+      // Left-join ONLY this one actress from your custom actors collection
       {
         $lookup: {
           from: "actors",
@@ -60,12 +57,10 @@ router.get("/movies-with-actors", async (req, res) => {
       },
       { $unwind: { path: "$leadActressDoc", preserveNullAndEmptyArrays: true } },
 
-      // —————————————————————————————————————————————
-      // 3. FINAL FILTER — EXACTLY YOUR RULE
-      //    • Keep if: actress missing from DB (null) → user must fix
-      //    • Keep if: actress exists AND ethnicity = "caucasian"
-      //    • Remove if: actress exists AND ethnicity ≠ "caucasian"
-      // —————————————————————————————————————————————
+      // FINAL FILTER — EXACTLY YOUR RULE
+      // • Keep if: actress missing from DB (null) → user must fix
+      // • Keep if: actress exists AND ethnicity = "caucasian"
+      // • Remove if: actress exists AND ethnicity ≠ "caucasian"
       {
         $match: {
           $or: [
@@ -78,9 +73,7 @@ router.get("/movies-with-actors", async (req, res) => {
         }
       },
 
-      // —————————————————————————————————————————————
-      // 4. BONUS: Add helpful flags for frontend
-      // —————————————————————————————————————————————
+      // BONUS: Add helpful flags for frontend
       {
         $addFields: {
           needsEthnicityFix: { $eq: ["$leadActressDoc", null] },
@@ -92,9 +85,7 @@ router.get("/movies-with-actors", async (req, res) => {
         }
       },
 
-      // —————————————————————————————————————————————
-      // 5. Full cast enrichment (all actors that exist in your DB)
-      // —————————————————————————————————————————————
+      // Full cast enrichment (all actors that exist in your DB) - limited for card view
       {
         $lookup: {
           from: "actors",
@@ -104,9 +95,7 @@ router.get("/movies-with-actors", async (req, res) => {
         }
       },
 
-      // —————————————————————————————————————————————
-      // 6. Final projection — clean + bonus fields
-      // —————————————————————————————————————————————
+      // Project only the fields needed for movie card display
       {
         $project: {
           id: 1,
@@ -114,54 +103,19 @@ router.get("/movies-with-actors", async (req, res) => {
           poster_path: 1,
           release_date: 1,
           vote_average: 1,
-          backdrop_path: "$fullDetails.backdrop_path",
-          overview: "$fullDetails.overview",
-          genres: "$fullDetails.genres",
-          runtime: "$fullDetails.runtime",
-          tagline: "$fullDetails.tagline",
-
-          // Keep original cast (trimmed)
-          credits: {
-            cast: {
-              $map: {
-                input: "$credits.cast",
-                as: "cast",
-                in: {
-                  id: "$$cast.id",
-                  name: "$$cast.name",
-                  character: "$$cast.character",
-                  profile_path: "$$cast.profile_path",
-                  order: "$$cast.order",
-                  gender: "$$cast.gender"
-                }
-              }
-            }
-          },
-
+          leadFemaleInfo: 1,
+          needsEthnicityFix: 1,
           providers: { results: { US: "$providers.results.US" } },
-          keywords: 1,
-
-          // Enriched actors
           matchingActors: {
             $map: {
               input: "$matchingActors",
               as: "a",
               in: {
                 id: "$$a.id",
-                name: "$$a.name",
-                hairColor: "$$a.hairColor",
-                heightRange: "$$a.heightRange",
-                weightRange: "$$a.weightRange",
-                ethnicity: "$$a.ethnicity",
-                deleted: "$$a.deleted",
                 hotScore: "$$a.hotScore"
               }
             }
-          },
-
-          // BONUS: UI helpers
-          needsEthnicityFix: 1,
-          leadFemaleInfo: 1
+          }
         }
       },
 
@@ -187,6 +141,86 @@ router.get("/movies-with-actors", async (req, res) => {
     });
   } catch (error) {
     console.error("Error:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// New endpoint for detailed movie data (used in movie modal)
+router.get("/movie-details/:id", async (req, res) => {
+  try {
+    const client = await clientPromise;
+    const db = client.db("maga-movies");
+    const movieId = parseInt(req.params.id);
+
+    const pipeline = [
+      { $match: { id: movieId } },
+      {
+        $lookup: {
+          from: "actors",
+          localField: "credits.cast.id",
+          foreignField: "id",
+          as: "matchingActors"
+        }
+      },
+      {
+        $project: {
+          id: 1,
+          title: 1,
+          poster_path: 1,
+          release_date: 1,
+          vote_average: 1,
+          backdrop_path: "$fullDetails.backdrop_path",
+          overview: "$fullDetails.overview",
+          genres: "$fullDetails.genres",
+          runtime: "$fullDetails.runtime",
+          tagline: "$fullDetails.tagline",
+          credits: {
+            cast: {
+              $map: {
+                input: "$credits.cast",
+                as: "cast",
+                in: {
+                  id: "$$cast.id",
+                  name: "$$cast.name",
+                  character: "$$cast.character",
+                  profile_path: "$$cast.profile_path",
+                  order: "$$cast.order",
+                  gender: "$$cast.gender"
+                }
+              }
+            }
+          },
+          providers: { results: { US: "$providers.results.US" } },
+          keywords: 1,
+          matchingActors: {
+            $map: {
+              input: "$matchingActors",
+              as: "a",
+              in: {
+                id: "$$a.id",
+                name: "$$a.name",
+                hairColor: "$$a.hairColor",
+                heightRange: "$$a.heightRange",
+                weightRange: "$$a.weightRange",
+                ethnicity: "$$a.ethnicity",
+                deleted: "$$a.deleted",
+                hotScore: "$$a.hotScore"
+              }
+            }
+          }
+        }
+      }
+    ];
+
+    const results = await db.collection("movies").aggregate(pipeline).toArray();
+
+    if (results.length === 0) {
+      return res.status(404).json({ error: "Movie not found" });
+    }
+
+    res.json(results[0]);
+  } catch (error) {
+    console.error("Error fetching movie details:", error);
     res.status(500).json({ error: "Server error" });
   }
 });
