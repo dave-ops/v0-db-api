@@ -33,7 +33,7 @@ if (!fs.existsSync(IMAGE_STORAGE_PATH)) {
 
 /*
 curl --request GET \
-     --url 'https://api.themoviedb.org/3/discover/movie?include_adult=false&include_video=false&language=en-US&page=1&primary_release_date.gte=1%2F1%2F1969&sort_by=primary_release_date.asc' \
+     --url 'https://api.themoviedb.org/3/discover/movie?include_adult=true&include_video=true&language=en-US&page=1&primary_release_date.gte=1%2F1%2F1969&sort_by=primary_release_date.asc&with_origin_country=US&without_watch_providers=Hoopla%2CKanopy' \
      --header 'Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI2MmNlMDY0ZGNiM2ExYjVlMGM4YTg3MjZmMWI3NDFkZCIsIm5iZiI6MTc2NDg3MzQwOS4zODUsInN1YiI6IjY5MzFkNGMxM2IxY2I1ZDg0YzdmNTc2YiIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.IimHoUjFu9YP8s-I_-Wp_QrZdNxOeBlGPqPJN0Ja350' \
      --header 'accept: application/json'
 */
@@ -48,7 +48,11 @@ async function fetchMovies(page) {
         page,
         sort_by: "primary_release_date.asc",
         include_adult: true,
+        with_origin_country: "US",
         "primary_release_date.gte": '1969-01-01',
+        language: "en-US",
+        include_adult: true,
+        include_video: true,
         // page_size fixed at 20
       },
     });
