@@ -1,4 +1,4 @@
-// file: C:\_dev\repos\v0-db-api\mongodb\views\movies_with_actors.cjs
+// file: C:\_dev\repos\v0-db-api\db\views\movies_with_actors.cjs
 const clientPromise = require("../../src/config/db");
 
 (async () => {
@@ -37,6 +37,18 @@ const clientPromise = require("../../src/config/db");
                 },
                 0
               ]
+            },
+            leadMaleCast: {
+              $arrayElemAt: [
+                {
+                  $filter: {
+                    input: "$credits.cast",
+                    as: "c",
+                    cond: { $eq: ["$$c.gender", 2] }
+                  }
+                },
+                0
+              ]
             }
           }
         },
@@ -45,11 +57,13 @@ const clientPromise = require("../../src/config/db");
         {
           $addFields: {
             leadActressId: "$leadFemaleCast.id",
-            leadActressName: "$leadFemaleCast.name"
+            leadActressName: "$leadFemaleCast.name",
+            leadActorId: "$leadMaleCast.id",
+            leadActorName: "$leadMaleCast.name"
           }
         },
 
-        // Join with custom actors collection
+        // Join with custom actors collection for female lead
         {
           $lookup: {
             from: "actors",
@@ -60,7 +74,18 @@ const clientPromise = require("../../src/config/db");
         },
         { $unwind: { path: "$leadActressDoc", preserveNullAndEmptyArrays: true } },
 
-        // CRITICAL FILTER: only caucasian OR missing (to be fixed)
+        // Join with custom actors collection for male lead
+        {
+          $lookup: {
+            from: "actors",
+            localField: "leadActorId",
+            foreignField: "id",
+            as: "leadActorDoc"
+          }
+        },
+        { $unwind: { path: "$leadActorDoc", preserveNullAndEmptyArrays: true } },
+
+        // CRITICAL FILTER: only caucasian OR missing (to be fixed) for female lead
         {
           $match: {
             $or: [
@@ -80,6 +105,13 @@ const clientPromise = require("../../src/config/db");
               ethnicity: { $ifNull: ["$leadActressDoc.ethnicity", null] },
               hot_score: { $ifNull: ["$leadActressDoc.hotScore", null] },
               hair_color: { $ifNull: ["$leadActressDoc.hairColor", null] }
+            },
+            leadMaleInfo: {
+              id: "$leadActorId",
+              name: "$leadActorName",
+              ethnicity: { $ifNull: ["$leadActorDoc.ethnicity", null] },
+              hot_score: { $ifNull: ["$leadActorDoc.hotScore", null] },
+              hair_color: { $ifNull: ["$leadActorDoc.hairColor", null] }
             }
           }
         },
@@ -111,6 +143,7 @@ const clientPromise = require("../../src/config/db");
               }
             },
             leadFemaleInfo: 1,
+            leadMaleInfo: 1,
             needsEthnicityFix: 1,
             providers: { results: { US: "$providers.results.US" } },
             matchingActors: {

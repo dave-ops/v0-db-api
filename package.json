@@ -6,9 +6,10 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "job:movie": "node src/batch_jobs/movieJob.js",
+    "job:details": "node src/batch_jobs/movieDetailJob.js",
     "job:country": "node src/batch_jobs/countryJob.js",
-    "db:movies": "node mongodb/views/movies_with_actors.cjs",
-    "db:genres": "node mongodb/views/genres.cjs"
+    "db:movies": "node db/views/movies_with_actors.cjs",
+    "db:genres": "node db/views/genres.cjs"
   },
   "dependencies": {
     "axios": "^1.6.2",
