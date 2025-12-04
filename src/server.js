@@ -11,6 +11,7 @@ const crudRoutes = require("./routes/crud");
 const movieJoinRoutes = require("./routes/movieJoin");
 const countryRoutes = require("./routes/countryRoutes");
 const banRoutes = require("./routes/banRoutes");
+const providerRoutes = require("./routes/providerRoutes");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -42,6 +43,7 @@ app.use("/api/:database/:collection", crudRoutes);
 app.use("/api/:database/:collection", banRoutes); // Add ban routes
 app.use("/api", movieJoinRoutes);
 app.use("/api", countryRoutes);
+app.use("/api", providerRoutes); // Add provider routes
 
 // Health check
 app.get("/health", (req, res) => res.json({ status: "OK", time: new Date() }));
