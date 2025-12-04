@@ -102,7 +102,14 @@ const clientPromise = require("../../src/config/db");
             poster_path: 1,
             release_date: 1,
             vote_average: 1,
-            genre_ids: "$genre_ids", 
+            genre_ids: "$genre_ids",
+            keyword_ids: {
+              $map: {
+                input: "$keywords",
+                as: "keyword",
+                in: "$$keyword.id"
+              }
+            },
             leadFemaleInfo: 1,
             needsEthnicityFix: 1,
             providers: { results: { US: "$providers.results.US" } },
