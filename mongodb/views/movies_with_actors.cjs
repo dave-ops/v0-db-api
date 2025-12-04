@@ -2,8 +2,9 @@
 const clientPromise = require("../../src/config/db");
 
 (async () => {
+  let client;
   try {
-    const client = await clientPromise;
+    client = await clientPromise;
     const db = client.db("maga-movies");
 
     // Drop the existing view if it exists
@@ -101,6 +102,7 @@ const clientPromise = require("../../src/config/db");
             poster_path: 1,
             release_date: 1,
             vote_average: 1,
+            genre_ids: "$genre_ids", 
             leadFemaleInfo: 1,
             needsEthnicityFix: 1,
             providers: { results: { US: "$providers.results.US" } },
@@ -122,11 +124,14 @@ const clientPromise = require("../../src/config/db");
       ]
     });
     console.log("View 'movies_with_lead_caucasian_actress' created successfully.");
-
-    // db.movies_with_lead_caucasian_actress.createIndex({ release_date: -1 })
-    // db.movies_with_lead_caucasian_actress.createIndex({ "leadFemaleInfo.hot_score": -1 })
-
   } catch (error) {
     console.error("Error creating view:", error.message);
+  } finally {
+    // Ensure the client connection is closed to terminate the script
+    if (client) {
+      await client.close();
+      console.log("MongoDB client connection closed.");
+    }
+    process.exit(0); // Explicitly exit the process to ensure termination
   }
 })();
