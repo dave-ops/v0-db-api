@@ -5,8 +5,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "batch:movie": "node src/batch_jobs/movieJob.js",
-    "batch:country": "node src/batch_jobs/countryJob.js",
+    "job:movie": "node src/batch_jobs/movieJob.js",
+    "job:country": "node src/batch_jobs/countryJob.js",
     "db:movies": "node mongodb/views/movies_with_actors.cjs",
     "db:genres": "node mongodb/views/genres.cjs"
   },

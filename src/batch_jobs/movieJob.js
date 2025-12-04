@@ -7,14 +7,15 @@ const fs = require("fs");
 const path = require("path");
 require("dotenv").config();
 
-const TMDB_API_KEY =
-  process.env.TMDB_API_KEY || "2dca580c2a14b55200e784d157207b4d";
+const TMDB_API_KEY = "62ce064dcb3a1b5e0c8a8726f1b741dd";
+const API_READ_ACCESS_TOKEN = 'eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI2MmNlMDY0ZGNiM2ExYjVlMGM4YTg3MjZmMWI3NDFkZCIsIm5iZiI6MTc2NDg3MzQwOS4zODUsInN1YiI6IjY5MzFkNGMxM2IxY2I1ZDg0YzdmNTc2YiIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.IimHoUjFu9YP8s-I_-Wp_QrZdNxOeBlGPqPJN0Ja350';
+
 const TMDB_BASE_URL =
   process.env.TMDB_BASE_URL || "https://api.themoviedb.org/3";
-const BATCH_SIZE = parseInt(process.env.BATCH_SIZE) || 100;
+const BATCH_SIZE = 3;
 // Increase MAX_PAGES to fetch more movies, or set to a very high number to attempt fetching all
-const MAX_PAGES = parseInt(process.env.MAX_PAGES) || 1000; // Adjusted to fetch more pages
-const IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500"; // Base URL for movie poster images
+const MAX_PAGES = 1; // Adjusted to fetch more pages
+const IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500"; // Base URL for movie poster and actor profile images
 const IMAGE_STORAGE_PATH = process.env.IMAGE_STORAGE_PATH || "./images"; // Base path for storing images
 
 const ctr = {
@@ -22,26 +23,39 @@ const ctr = {
   ttl: 0,
 };
 
+const today = new Date().toISOString().split('T')[0]; // e.g., "2025-12-04"
+const minDate = new Date('01/01/1968').toISOString().split('T')[0]; 
+
 // Ensure the base image storage directory exists
 if (!fs.existsSync(IMAGE_STORAGE_PATH)) {
   fs.mkdirSync(IMAGE_STORAGE_PATH, { recursive: true });
 }
 
+/*
+curl --request GET \
+     --url 'https://api.themoviedb.org/3/discover/movie?include_adult=false&include_video=false&language=en-US&page=1&primary_release_date.gte=1%2F1%2F1969&sort_by=primary_release_date.asc' \
+     --header 'Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI2MmNlMDY0ZGNiM2ExYjVlMGM4YTg3MjZmMWI3NDFkZCIsIm5iZiI6MTc2NDg3MzQwOS4zODUsInN1YiI6IjY5MzFkNGMxM2IxY2I1ZDg0YzdmNTc2YiIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.IimHoUjFu9YP8s-I_-Wp_QrZdNxOeBlGPqPJN0Ja350' \
+     --header 'accept: application/json'
+*/
+
 async function fetchMovies(page) {
-  try {
-    const response = await axios.get(`${TMDB_BASE_URL}/discover/movie`, {
-      params: {
+    ctr.cur++;
+    const endpoint = `${TMDB_BASE_URL}/discover/movie`;
+    console.log(`fetching page ${page} for ${endpoint}`);
+    const response = await axios.get(endpoint, {
+    params: {
         api_key: TMDB_API_KEY,
         page,
-        sort_by: "popularity.desc",
+        sort_by: "primary_release_date.asc",
         include_adult: true,
+        "primary_release_date.gte": '1969-01-01',
+        // page_size fixed at 20
       },
     });
+    console.log(response.data);
+    console.log(`records found ${response.data.results.length}`);
+
     return response.data;
-  } catch (error) {
-    console.error(`Error fetching movies for page ${page}:`, error.message);
-    return { results: [], total_pages: 0 };
-  }
 }
 
 async function fetchMovieDetails(movieId) {
@@ -68,7 +82,7 @@ async function fetchMovieDetails(movieId) {
       for (const providerType in usProviders) {
         if (Array.isArray(usProviders[providerType])) {
           usProviders[providerType] = usProviders[providerType].filter(
-            provider => !['Hoopla', 'Kanopy'].includes(provider.provider_name)
+            (provider) => !["Hoopla", "Kanopy"].includes(provider.provider_name)
           );
         }
       }
@@ -107,19 +121,34 @@ async function processMovies(movies) {
   return detailedMovies;
 }
 
-async function processAndSaveImage(posterPath) {
+async function processAndSaveImage(imagePath, imageType = "poster", id = null) {
   ctr.cur++;
 
-  if (!posterPath) return null;
+  if (!imagePath) return null;
 
-  const originalUrl = `${IMAGE_BASE_URL}${posterPath}`;
-  console.log(`${ctr.cur} processing ${originalUrl}`);
+  const originalUrl = `${IMAGE_BASE_URL}${imagePath}`;
+  console.log(`${ctr.cur} processing ${imageType} ${originalUrl}`);
 
   const uuid = uuidv4();
   const firstChar = uuid.charAt(0);
-  const folderPath = path.join(IMAGE_STORAGE_PATH, firstChar);
+  let folderPath;
+  let newFileName;
   const fileExtension = ".webp"; // Using WebP for fastest loading
-  const newFileName = `${uuid}${fileExtension}`;
+
+  if (imageType === "poster") {
+    folderPath = path.join(IMAGE_STORAGE_PATH, firstChar);
+    newFileName = `${uuid}${fileExtension}`;
+  } else {
+    // For actors, use the structure images/actors/<first 3 digits of actor_id>/<actor_id>
+    const actorIdStr = id.toString();
+    const firstThreeDigits =
+      actorIdStr.length >= 3
+        ? actorIdStr.substring(0, 3)
+        : actorIdStr.padStart(3, "0");
+    folderPath = path.join(IMAGE_STORAGE_PATH, "actors", firstThreeDigits);
+    newFileName = `${id}${fileExtension}`;
+  }
+
   const filePath = path.join(folderPath, newFileName);
 
   try {
@@ -192,7 +221,10 @@ async function saveToMongoDB(
 
       // Process and save poster image if available
       if (movie.poster_path) {
-        const imageData = await processAndSaveImage(movie.poster_path);
+        const imageData = await processAndSaveImage(
+          movie.poster_path,
+          "poster"
+        );
         if (imageData) {
           await imageCollection.updateOne(
             { originalUrl: imageData.originalUrl },
@@ -211,6 +243,42 @@ async function saveToMongoDB(
           console.log(
             `Saved image data for movie ${movie.id} to images collection`
           );
+        }
+      }
+
+      // Process and save actor profile images if available
+      if (
+        movie.credits &&
+        movie.credits.cast &&
+        movie.credits.cast.length > 0
+      ) {
+        for (const actor of movie.credits.cast) {
+          if (actor.profile_path) {
+            const actorImageData = await processAndSaveImage(
+              actor.profile_path,
+              "actor",
+              actor.id
+            );
+            if (actorImageData) {
+              await imageCollection.updateOne(
+                { originalUrl: actorImageData.originalUrl },
+                {
+                  $set: {
+                    originalUrl: actorImageData.originalUrl,
+                    newFileName: actorImageData.newFileName,
+                    path: actorImageData.path,
+                    uuid: actorImageData.uuid,
+                    actorId: actor.id,
+                    lastUpdated: new Date(),
+                  },
+                },
+                { upsert: true }
+              );
+              console.log(
+                `Saved image data for actor ${actor.id} to images collection`
+              );
+            }
+          }
         }
       }
     }
