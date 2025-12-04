@@ -12,9 +12,9 @@ const API_READ_ACCESS_TOKEN = 'eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI2MmNlMDY0ZGNiM2Ex
 
 const TMDB_BASE_URL =
   process.env.TMDB_BASE_URL || "https://api.themoviedb.org/3";
-const BATCH_SIZE = 3;
+const BATCH_SIZE = 20;
 // Increase MAX_PAGES to fetch more movies, or set to a very high number to attempt fetching all
-const MAX_PAGES = 1; // Adjusted to fetch more pages
+const MAX_PAGES = 2; // Adjusted to fetch more pages
 const IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500"; // Base URL for movie poster and actor profile images
 const IMAGE_STORAGE_PATH = process.env.IMAGE_STORAGE_PATH || "./images"; // Base path for storing images
 
@@ -24,7 +24,7 @@ const ctr = {
 };
 
 const today = new Date().toISOString().split('T')[0]; // e.g., "2025-12-04"
-const minDate = new Date('01/01/1968').toISOString().split('T')[0]; 
+const minDate = '1969-01-01'
 
 // Ensure the base image storage directory exists
 if (!fs.existsSync(IMAGE_STORAGE_PATH)) {
@@ -38,10 +38,34 @@ curl --request GET \
      --header 'accept: application/json'
 */
 
+async function getMinReleaseDate(db) {
+  const movieCollection = db.collection("movies");
+  const count = await movieCollection.countDocuments();
+
+  if (count === 0) {
+    console.log("No movies in collection, using default minDate:", minDate);
+    return minDate;
+  }
+
+  const latestMovie = await movieCollection.findOne({}, { sort: { release_date: -1 } });
+  if (latestMovie && latestMovie.release_date) {
+    console.log("Using max release_date from collection:", latestMovie.release_date);
+    return latestMovie.release_date.split('T')[0]; // Format as YYYY-MM-DD
+  }
+
+  console.log("Fallback to minDate due to missing release_date:", minDate);
+  return minDate;
+}
+
 async function fetchMovies(page) {
     ctr.cur++;
     const endpoint = `${TMDB_BASE_URL}/discover/movie`;
     console.log(`fetching page ${page} for ${endpoint}`);
+
+    const client = await clientPromise;
+    const db = client.db("maga-movies");
+    const releaseDateGte = await getMinReleaseDate(db);
+
     const response = await axios.get(endpoint, {
     params: {
         api_key: TMDB_API_KEY,
@@ -49,7 +73,7 @@ async function fetchMovies(page) {
         sort_by: "primary_release_date.asc",
         include_adult: true,
         with_origin_country: "US",
-        "primary_release_date.gte": '1969-01-01',
+        "primary_release_date.gte": releaseDateGte,
         language: "en-US",
         include_adult: true,
         include_video: true,
@@ -125,7 +149,7 @@ async function processMovies(movies) {
   return detailedMovies;
 }
 
-async function processAndSaveImage(imagePath, imageType = "poster", id = null) {
+async function processAndSaveImage(movieId, imagePath, imageType = "poster", id = null) {
   ctr.cur++;
 
   if (!imagePath) return null;
@@ -138,10 +162,12 @@ async function processAndSaveImage(imagePath, imageType = "poster", id = null) {
   let folderPath;
   let newFileName;
   const fileExtension = ".webp"; // Using WebP for fastest loading
+  const mid = movieId.toString();
+  const firstTwo = mid.length >= 2 ? mid.substring(0, 2) : mid.padStart(2, "0");
 
   if (imageType === "poster") {
-    folderPath = path.join(IMAGE_STORAGE_PATH, firstChar);
-    newFileName = `${uuid}${fileExtension}`;
+    folderPath = path.join(IMAGE_STORAGE_PATH, "posters", firstTwo);
+    newFileName = `${movieId}${fileExtension}`;
   } else {
     // For actors, use the structure images/actors/<first 3 digits of actor_id>/<actor_id>
     const actorIdStr = id.toString();
@@ -225,7 +251,7 @@ async function saveToMongoDB(
 
       // Process and save poster image if available
       if (movie.poster_path) {
-        const imageData = await processAndSaveImage(
+        const imageData = await processAndSaveImage(movie.id,
           movie.poster_path,
           "poster"
         );
@@ -307,8 +333,8 @@ async function batchJob() {
       console.log(
         `Processing ${moviesToProcess.length} movies from page ${currentPage}...`
       );
-      const detailedMovies = await processMovies(moviesToProcess);
-      await saveToMongoDB(detailedMovies);
+      //const detailedMovies = await processMovies(moviesToProcess);
+      await saveToMongoDB(moviesToProcess);
     } else {
       console.log(`No more movies found on page ${currentPage}. Stopping.`);
       break; // Exit loop if no results are found on the current page
