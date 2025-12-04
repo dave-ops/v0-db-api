@@ -8,13 +8,14 @@ const path = require("path");
 require("dotenv").config();
 
 const TMDB_API_KEY = "62ce064dcb3a1b5e0c8a8726f1b741dd";
-const API_READ_ACCESS_TOKEN = 'eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI2MmNlMDY0ZGNiM2ExYjVlMGM4YTg3MjZmMWI3NDFkZCIsIm5iZiI6MTc2NDg3MzQwOS4zODUsInN1YiI6IjY5MzFkNGMxM2IxY2I1ZDg0YzdmNTc2YiIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.IimHoUjFu9YP8s-I_-Wp_QrZdNxOeBlGPqPJN0Ja350';
+const API_READ_ACCESS_TOKEN =
+  "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI2MmNlMDY0ZGNiM2ExYjVlMGM4YTg3MjZmMWI3NDFkZCIsIm5iZiI6MTc2NDg3MzQwOS4zODUsInN1YiI6IjY5MzFkNGMxM2IxY2I1ZDg0YzdmNTc2YiIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.IimHoUjFu9YP8s-I_-Wp_QrZdNxOeBlGPqPJN0Ja350";
 
 const TMDB_BASE_URL =
   process.env.TMDB_BASE_URL || "https://api.themoviedb.org/3";
 const BATCH_SIZE = 20;
 // Increase MAX_PAGES to fetch more movies, or set to a very high number to attempt fetching all
-const MAX_PAGES = 2; // Adjusted to fetch more pages
+const MAX_PAGES = 25000; // Adjusted to fetch more pages
 const IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500"; // Base URL for movie poster and actor profile images
 const IMAGE_STORAGE_PATH = process.env.IMAGE_STORAGE_PATH || "./images"; // Base path for storing images
 
@@ -23,8 +24,8 @@ const ctr = {
   ttl: 0,
 };
 
-const today = new Date().toISOString().split('T')[0]; // e.g., "2025-12-04"
-const minDate = '1969-01-01'
+const today = new Date().toISOString().split("T")[0]; // e.g., "2025-12-04"
+const minDate = "1969-01-01";
 
 // Ensure the base image storage directory exists
 if (!fs.existsSync(IMAGE_STORAGE_PATH)) {
@@ -47,10 +48,16 @@ async function getMinReleaseDate(db) {
     return minDate;
   }
 
-  const latestMovie = await movieCollection.findOne({}, { sort: { release_date: -1 } });
+  const latestMovie = await movieCollection.findOne(
+    {},
+    { sort: { release_date: -1 } }
+  );
   if (latestMovie && latestMovie.release_date) {
-    console.log("Using max release_date from collection:", latestMovie.release_date);
-    return latestMovie.release_date.split('T')[0]; // Format as YYYY-MM-DD
+    console.log(
+      "Using max release_date from collection:",
+      latestMovie.release_date
+    );
+    return latestMovie.release_date.split("T")[0]; // Format as YYYY-MM-DD
   }
 
   console.log("Fallback to minDate due to missing release_date:", minDate);
@@ -58,35 +65,37 @@ async function getMinReleaseDate(db) {
 }
 
 async function fetchMovies(page) {
-    ctr.cur++;
-    const endpoint = `${TMDB_BASE_URL}/discover/movie`;
-    console.log(`fetching page ${page} for ${endpoint}`);
+  ctr.cur++;
+  const endpoint = `${TMDB_BASE_URL}/discover/movie`;
+  console.log(`fetching page ${page} for ${endpoint}`);
 
-    const client = await clientPromise;
-    const db = client.db("maga-movies");
-    const releaseDateGte = await getMinReleaseDate(db);
+  const client = await clientPromise;
+  const db = client.db("maga-movies");
+  const releaseDateGte = await getMinReleaseDate(db);
 
-    const response = await axios.get(endpoint, {
+  const response = await axios.get(endpoint, {
     params: {
-        api_key: TMDB_API_KEY,
-        page,
-        sort_by: "primary_release_date.asc",
-        include_adult: true,
-        with_origin_country: "US",
-        "primary_release_date.gte": releaseDateGte,
-        language: "en-US",
-        include_adult: true,
-        include_video: true,
-        // page_size fixed at 20
-      },
-    });
-    console.log(response.data);
-    console.log(`records found ${response.data.results.length}`);
+      api_key: TMDB_API_KEY,
+      page,
+      sort_by: "primary_release_date.asc",
+      include_adult: true,
+      with_origin_country: "US",
+      "primary_release_date.gte": releaseDateGte,
+      "primary_release_date.lte": today,
+      language: "en-US",
+      include_adult: true,
+      include_video: true,
+      // page_size fixed at 20
+    },
+  });
+  console.log(response.data);
+  console.log(`records found ${response.data.results.length}`);
 
-    return response.data;
+  return response.data;
 }
 
 async function fetchMovieDetails(movieId) {
+  throw new Error("not implemented");
   try {
     const [detailsRes, creditsRes, providersRes, keywordsRes] =
       await Promise.all([
@@ -149,7 +158,12 @@ async function processMovies(movies) {
   return detailedMovies;
 }
 
-async function processAndSaveImage(movieId, imagePath, imageType = "poster", id = null) {
+async function processAndSaveImage(
+  movieId,
+  imagePath,
+  imageType = "poster",
+  id = null
+) {
   ctr.cur++;
 
   if (!imagePath) return null;
@@ -181,53 +195,48 @@ async function processAndSaveImage(movieId, imagePath, imageType = "poster", id 
 
   const filePath = path.join(folderPath, newFileName);
 
-  try {
-    // Check if the image URL has already been processed
-    const client = await clientPromise;
-    const db = client.db("maga-movies");
-    const imageCollection = db.collection("images");
-    const existingImage = await imageCollection.findOne({ originalUrl });
+  // Check if the image URL has already been processed
+  const client = await clientPromise;
+  const db = client.db("maga-movies");
+  const imageCollection = db.collection("images");
+  const existingImage = await imageCollection.findOne({ originalUrl });
 
-    if (existingImage) {
-      console.log(`Image already processed for ${originalUrl}, skipping.`);
-      return {
-        originalUrl,
-        newFileName: existingImage.newFileName,
-        path: existingImage.path,
-        uuid: existingImage.uuid,
-      };
-    }
-
-    // Create folder if it doesn't exist
-    if (!fs.existsSync(folderPath)) {
-      fs.mkdirSync(folderPath, { recursive: true });
-    }
-
-    // Fetch the image
-    const response = await axios.get(originalUrl, {
-      responseType: "arraybuffer",
-    });
-    const imageBuffer = Buffer.from(response.data, "binary");
-
-    // Resize to 100px wide, maintain aspect ratio, and convert to WebP
-    const resizedImageBuffer = await sharp(imageBuffer)
-      .resize({ width: 100, withoutEnlargement: true })
-      .webp({ quality: 80 })
-      .toBuffer();
-
-    // Save the image to the filesystem
-    fs.writeFileSync(filePath, resizedImageBuffer);
-
+  if (existingImage) {
+    console.log(`Image already processed for ${originalUrl}, skipping.`);
     return {
       originalUrl,
-      newFileName,
-      path: filePath,
-      uuid,
+      newFileName: existingImage.newFileName,
+      path: existingImage.path,
+      uuid: existingImage.uuid,
     };
-  } catch (error) {
-    console.error(`Error processing image for ${originalUrl}:`, error.message);
-    return null;
   }
+
+  // Create folder if it doesn't exist
+  if (!fs.existsSync(folderPath)) {
+    fs.mkdirSync(folderPath, { recursive: true });
+  }
+
+  // Fetch the image
+  const response = await axios.get(originalUrl, {
+    responseType: "arraybuffer",
+  });
+  const imageBuffer = Buffer.from(response.data, "binary");
+
+  // Resize to 100px wide, maintain aspect ratio, and convert to WebP
+  const resizedImageBuffer = await sharp(imageBuffer)
+    .resize({ width: 100, withoutEnlargement: true })
+    .webp({ quality: 80 })
+    .toBuffer();
+
+  // Save the image to the filesystem
+  fs.writeFileSync(filePath, resizedImageBuffer);
+
+  return {
+    originalUrl,
+    newFileName,
+    path: filePath,
+    uuid,
+  };
 }
 
 async function saveToMongoDB(
@@ -251,7 +260,8 @@ async function saveToMongoDB(
 
       // Process and save poster image if available
       if (movie.poster_path) {
-        const imageData = await processAndSaveImage(movie.id,
+        const imageData = await processAndSaveImage(
+          movie.id,
           movie.poster_path,
           "poster"
         );
