@@ -126,7 +126,6 @@ const clientPromise = require("../../src/config/db");
     // db.movies_with_lead_caucasian_actress.createIndex({ release_date: -1 })
     // db.movies_with_lead_caucasian_actress.createIndex({ "leadFemaleInfo.hot_score": -1 })
 
-
   } catch (error) {
     console.error("Error creating view:", error.message);
   }

@@ -61,6 +61,19 @@ async function fetchMovieDetails(movieId) {
           params: { api_key: TMDB_API_KEY },
         }),
       ]);
+
+    // Filter out providers named 'Hoopla' and 'Kanopy'
+    if (providersRes.data.results && providersRes.data.results.US) {
+      const usProviders = providersRes.data.results.US;
+      for (const providerType in usProviders) {
+        if (Array.isArray(usProviders[providerType])) {
+          usProviders[providerType] = usProviders[providerType].filter(
+            provider => !['Hoopla', 'Kanopy'].includes(provider.provider_name)
+          );
+        }
+      }
+    }
+
     return {
       details: detailsRes.data,
       credits: creditsRes.data,
