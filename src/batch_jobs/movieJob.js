@@ -8,30 +8,33 @@ const path = require("path");
 require("dotenv").config();
 
 const TMDB_API_KEY = "62ce064dcb3a1b5e0c8a8726f1b741dd";
-const API_READ_ACCESS_TOKEN =
-  "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI2MmNlMDY0ZGNiM2ExYjVlMGM4YTg3MjZmMWI3NDFkZCIsIm5iZiI6MTc2NDg3MzQwOS4zODUsInN1YiI6IjY5MzFkNGMxM2IxY2I1ZDg0YzdmNTc2YiIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.IimHoUjFu9YP8s-I_-Wp_QrZdNxOeBlGPqPJN0Ja350";
+const API_READ_ACCESS_TOKEN = "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI2MmNlMDY0ZGNiM2ExYjVlMGM4YTg3MjZmMWI3NDFkZCIsIm5iZiI6MTc2NDg3MzQwOS4zODUsInN1YiI6IjY5MzFkNGMxM2IxY2I1ZDg0YzdmNTc2YiIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.IimHoUjFu9YP8s-I_-Wp_QrZdNxOeBlGPqPJN0Ja350";
+const TMDB_BASE_URL = process.env.TMDB_BASE_URL || "https://api.themoviedb.org/3";
 
-const TMDB_BASE_URL =
-  process.env.TMDB_BASE_URL || "https://api.themoviedb.org/3";
-const BATCH_SIZE = 20;
-// Increase MAX_PAGES to fetch more movies, or set to a very high number to attempt fetching all
-const MAX_PAGES = 25000; // Adjusted to fetch more pages
+const MAX_PAGE_SIZE_ALLOWED = 20;
+const MAX_PAGES_PER_FILTER = 500; // Adjusted to fetch more pages
 const IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500"; // Base URL for movie poster and actor profile images
 const IMAGE_STORAGE_PATH = process.env.IMAGE_STORAGE_PATH || "./images"; // Base path for storing images
 
-const ctr = {
-  cur: 0,
-  ttl: 0,
+const today = new Date().toISOString().split("T")[0]; // e.g., "2025-12-04"
+
+const JOB_STATE = {
+  movie_ctr: 0,
+  total_movies: 0,
   page: 0,
-  total: 0,
   page_size: 20,
   total_results: 0,
   total_pages: 0,
   release_date: '',
-  last_release_date: '2019-04-19',
+  last_release_date: today,
+  last: {
+    page: 0,
+    total_results: 0,
+    total_pages: 0,
+    data: [],
+  }
 };
 
-const today = new Date().toISOString().split("T")[0]; // e.g., "2025-12-04"
 const minDate = "2010-01-01";
 
 // Ensure the base image storage directory exists
@@ -72,13 +75,13 @@ async function getMinReleaseDate(db) {
 }
 
 async function fetchMovies(p) {
-  if (ctr.page === 499) {
-    ctr.page = 1;
-    ctr.last_release_date = ctr.release_date;
+  if (JOB_STATE.page === 499) {
+    JOB_STATE.page = 1;
+    JOB_STATE.last_release_date = JOB_STATE.release_date;
   }
-  ctr.cur++;
+  JOB_STATE.movie_ctr++;
   const endpoint = `${TMDB_BASE_URL}/discover/movie`;
-  console.log(`fetching page ${ctr.page} for ${endpoint}`);
+  console.log(`fetching page ${JOB_STATE.page} for ${endpoint}`);
 
   const client = await clientPromise;
   const db = client.db("maga-movies");
@@ -89,11 +92,11 @@ async function fetchMovies(p) {
   const response = await axios.get(endpoint, {
     params: {
       api_key: TMDB_API_KEY,
-      page: ctr.page,
+      page: JOB_STATE.page,
       sort_by: "primary_release_date.desc",
       with_origin_country: "US",
       //"primary_release_date.gte": minDate,
-      "primary_release_date.lte": ctr.last_release_date,
+      "primary_release_date.lte": JOB_STATE.last_release_date,
       include_adult: false,
       include_video: false,
       // page_size fixed at 20
@@ -101,11 +104,11 @@ async function fetchMovies(p) {
   });
   console.log({
       api_key: TMDB_API_KEY,
-      page: ctr.page,
+      page: JOB_STATE.page,
       sort_by: "primary_release_date.desc",
       with_origin_country: "US",
       //"primary_release_date.gte": minDate,
-      "primary_release_date.lte": ctr.last_release_date,
+      "primary_release_date.lte": JOB_STATE.last_release_date,
       include_adult: false,
       include_video: false,
       // page_size fixed at 20
@@ -113,7 +116,7 @@ async function fetchMovies(p) {
   console.log(response.data);
   console.log(`records found ${response.data.results.length}`);
 
-  ctr.release_date = response.data.release_date;
+  JOB_STATE.release_date = response.data.release_date;
 
   return response.data;
 }
@@ -188,10 +191,10 @@ async function processAndSaveImage(
   imageType = "poster",
   id = null
 ) {
-  ctr.cur++;
+  JOB_STATE.movie_ctr++;
 
   const originalUrl = `${IMAGE_BASE_URL}${imagePath}`;
-  console.log(`${ctr.cur} processing ${imageType} ${originalUrl}`);
+  console.log(`${JOB_STATE.movie_ctr} processing ${imageType} ${originalUrl}`);
 
   const uuid = uuidv4();
   const firstChar = uuid.charAt(0);
@@ -275,7 +278,7 @@ async function saveToMongoDB(
     // Save movie data
     //delete movie.overview;
 
-    ctr.release_date = movie.release_date;
+    JOB_STATE.release_date = movie.release_date;
     await movieCollection.updateOne(
       { id: movie.id },
       { $set: movie },
@@ -348,18 +351,19 @@ async function saveToMongoDB(
 async function batchJob() {
   console.log("Starting batch job to pre-compile movie data...");
 
-  ctr.page = 1;
-  ctr.total_pages = 500;
+  // init job state
+  JOB_STATE.page = 1;
+  JOB_STATE.total_pages = MAX_PAGES_PER_FILTER;
 
-  while (ctr.page < ctr.total_pages ) {
-    const data = await fetchMovies(ctr.page);
+  while (JOB_STATE.page < JOB_STATE.total_pages ) {
+    const data = await fetchMovies(JOB_STATE.page);
 
     // if (!ctr.total_pages) {
     //   ctr.total_pages = data.total_pages;
     // }
 
-    if (ctr.page !== data.page) {
-      console.error(`${ctr.page} !== ${data.page}`);
+    if (JOB_STATE.page !== data.page) {
+      console.error(`${JOB_STATE.page} !== ${data.page}`);
       break;
     }
 
@@ -369,13 +373,13 @@ async function batchJob() {
     // }
 
     console.log(
-      `Fetching page ${ctr.page} of ${ctr.total_pages} of ${data.total_results}`
+      `Fetching page ${JOB_STATE.page} of ${JOB_STATE.total_pages} of ${data.total_results}`
     );
 
     if (data.results.length > 0) {
       const moviesToProcess = data.results;
       console.log(
-        `     - processing ${moviesToProcess.length} movies from page ${ctr.page}`
+        `     - processing ${moviesToProcess.length} movies from page ${JOB_STATE.page}`
       );
       //const detailedMovies = await processMovies(moviesToProcess);
       await saveToMongoDB(moviesToProcess);
@@ -384,7 +388,7 @@ async function batchJob() {
       break; // Exit loop if no results are found on the current page
     }
 
-    ctr.page++;
+    JOB_STATE.page++;
   }
 
   console.log("Batch job completed.");
