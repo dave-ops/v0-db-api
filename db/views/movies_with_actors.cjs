@@ -49,6 +49,18 @@ const clientPromise = require("../../src/config/db");
                 },
                 0
               ]
+            },
+            leadDirector: {
+              $arrayElemAt: [
+                {
+                  $filter: {
+                    input: "$credits.crew",
+                    as: "c",
+                    cond: { $eq: ["$$c.job", "Director"] }
+                  }
+                },
+                0
+              ]
             }
           }
         },
@@ -59,7 +71,9 @@ const clientPromise = require("../../src/config/db");
             leadActressId: "$leadFemaleCast.id",
             leadActressName: "$leadFemaleCast.name",
             leadActorId: "$leadMaleCast.id",
-            leadActorName: "$leadMaleCast.name"
+            leadActorName: "$leadMaleCast.name",
+            leadDirectorId: "$leadDirector.id",
+            leadDirectorName: "$leadDirector.name"
           }
         },
 
@@ -112,6 +126,10 @@ const clientPromise = require("../../src/config/db");
               ethnicity: { $ifNull: ["$leadActorDoc.ethnicity", null] },
               hot_score: { $ifNull: ["$leadActorDoc.hotScore", null] },
               hair_color: { $ifNull: ["$leadActorDoc.hairColor", null] }
+            },
+            leadDirectorInfo: {
+              id: "$leadDirectorId",
+              name: "$leadDirectorName"
             }
           }
         },
@@ -144,6 +162,7 @@ const clientPromise = require("../../src/config/db");
             },
             leadFemaleInfo: 1,
             leadMaleInfo: 1,
+            leadDirectorInfo: 1,
             needsEthnicityFix: 1,
             providers: { results: { US: "$providers.results.US" } },
             matchingActors: {
