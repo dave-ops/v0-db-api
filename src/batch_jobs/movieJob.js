@@ -22,10 +22,17 @@ const IMAGE_STORAGE_PATH = process.env.IMAGE_STORAGE_PATH || "./images"; // Base
 const ctr = {
   cur: 0,
   ttl: 0,
+  page: 0,
+  total: 0,
+  page_size: 20,
+  total_results: 0,
+  total_pages: 0,
+  release_date: '',
+  last_release_date: '2019-04-19',
 };
 
 const today = new Date().toISOString().split("T")[0]; // e.g., "2025-12-04"
-const minDate = "1969-01-01";
+const minDate = "2010-01-01";
 
 // Ensure the base image storage directory exists
 if (!fs.existsSync(IMAGE_STORAGE_PATH)) {
@@ -64,32 +71,49 @@ async function getMinReleaseDate(db) {
   return minDate;
 }
 
-async function fetchMovies(page) {
+async function fetchMovies(p) {
+  if (ctr.page === 499) {
+    ctr.page = 1;
+    ctr.last_release_date = ctr.release_date;
+  }
   ctr.cur++;
   const endpoint = `${TMDB_BASE_URL}/discover/movie`;
-  console.log(`fetching page ${page} for ${endpoint}`);
+  console.log(`fetching page ${ctr.page} for ${endpoint}`);
 
   const client = await clientPromise;
   const db = client.db("maga-movies");
   const releaseDateGte = await getMinReleaseDate(db);
 
+
+
   const response = await axios.get(endpoint, {
     params: {
       api_key: TMDB_API_KEY,
-      page,
-      sort_by: "primary_release_date.asc",
-      include_adult: true,
+      page: ctr.page,
+      sort_by: "primary_release_date.desc",
       with_origin_country: "US",
-      "primary_release_date.gte": releaseDateGte,
-      "primary_release_date.lte": today,
-      language: "en-US",
-      include_adult: true,
-      include_video: true,
+      //"primary_release_date.gte": minDate,
+      "primary_release_date.lte": ctr.last_release_date,
+      include_adult: false,
+      include_video: false,
       // page_size fixed at 20
     },
   });
+  console.log({
+      api_key: TMDB_API_KEY,
+      page: ctr.page,
+      sort_by: "primary_release_date.desc",
+      with_origin_country: "US",
+      //"primary_release_date.gte": minDate,
+      "primary_release_date.lte": ctr.last_release_date,
+      include_adult: false,
+      include_video: false,
+      // page_size fixed at 20
+    })
   console.log(response.data);
   console.log(`records found ${response.data.results.length}`);
+
+  ctr.release_date = response.data.release_date;
 
   return response.data;
 }
@@ -165,8 +189,6 @@ async function processAndSaveImage(
   id = null
 ) {
   ctr.cur++;
-
-  if (!imagePath) return null;
 
   const originalUrl = `${IMAGE_BASE_URL}${imagePath}`;
   console.log(`${ctr.cur} processing ${imageType} ${originalUrl}`);
@@ -244,104 +266,116 @@ async function saveToMongoDB(
   dbName = "maga-movies",
   collName = "movies"
 ) {
-  try {
-    const client = await clientPromise;
-    const db = client.db(dbName);
-    const movieCollection = db.collection(collName);
-    const imageCollection = db.collection("images");
+  const client = await clientPromise;
+  const db = client.db(dbName);
+  const movieCollection = db.collection(collName);
+  const imageCollection = db.collection("images");
 
-    for (const movie of movies) {
-      // Save movie data
-      await movieCollection.updateOne(
-        { id: movie.id },
-        { $set: movie },
-        { upsert: true }
-      );
+  for (const movie of movies) {
+    // Save movie data
+    //delete movie.overview;
 
-      // Process and save poster image if available
-      if (movie.poster_path) {
-        const imageData = await processAndSaveImage(
-          movie.id,
-          movie.poster_path,
-          "poster"
-        );
-        if (imageData) {
-          await imageCollection.updateOne(
-            { originalUrl: imageData.originalUrl },
-            {
-              $set: {
-                originalUrl: imageData.originalUrl,
-                newFileName: imageData.newFileName,
-                path: imageData.path,
-                uuid: imageData.uuid,
-                movieId: movie.id,
-                lastUpdated: new Date(),
-              },
-            },
-            { upsert: true }
-          );
-          console.log(
-            `Saved image data for movie ${movie.id} to images collection`
-          );
-        }
-      }
+    ctr.release_date = movie.release_date;
+    await movieCollection.updateOne(
+      { id: movie.id },
+      { $set: movie },
+      { upsert: true }
+    );
 
-      // Process and save actor profile images if available
-      if (
-        movie.credits &&
-        movie.credits.cast &&
-        movie.credits.cast.length > 0
-      ) {
-        for (const actor of movie.credits.cast) {
-          if (actor.profile_path) {
-            const actorImageData = await processAndSaveImage(
-              actor.profile_path,
-              "actor",
-              actor.id
-            );
-            if (actorImageData) {
-              await imageCollection.updateOne(
-                { originalUrl: actorImageData.originalUrl },
-                {
-                  $set: {
-                    originalUrl: actorImageData.originalUrl,
-                    newFileName: actorImageData.newFileName,
-                    path: actorImageData.path,
-                    uuid: actorImageData.uuid,
-                    actorId: actor.id,
-                    lastUpdated: new Date(),
-                  },
-                },
-                { upsert: true }
-              );
-              console.log(
-                `Saved image data for actor ${actor.id} to images collection`
-              );
-            }
-          }
-        }
-      }
-    }
-    console.log(`Saved ${movies.length} movies to MongoDB`);
-  } catch (error) {
-    console.error("Error saving to MongoDB:", error.message);
+    // Process and save poster image if available
+    // if (movie.poster_path === 'disabled') {
+    //   const imageData = await processAndSaveImage(
+    //     movie.id,
+    //     movie.poster_path,
+    //     "poster"
+    //   );
+    //   if (imageData) {
+    //     await imageCollection.updateOne(
+    //       { originalUrl: imageData.originalUrl },
+    //       {
+    //         $set: {
+    //           originalUrl: imageData.originalUrl,
+    //           newFileName: imageData.newFileName,
+    //           path: imageData.path,
+    //           uuid: imageData.uuid,
+    //           movieId: movie.id,
+    //           lastUpdated: new Date(),
+    //         },
+    //       },
+    //       { upsert: true }
+    //     );
+    //     console.log(
+    //       `Saved image data for movie ${movie.id} to images collection`
+    //     );
+    //   }
+    // }
+
+    // Process and save actor profile images if available
+    // if (movie.credits && movie.credits.cast && movie.credits.cast.length > 0) {
+    //   for (const actor of movie.credits.cast) {
+    //     if (actor.profile_path) {
+    //       const actorImageData = await processAndSaveImage(
+    //         actor.profile_path,
+    //         "actor",
+    //         actor.id
+    //       );
+    //       if (actorImageData) {
+    //         await imageCollection.updateOne(
+    //           { originalUrl: actorImageData.originalUrl },
+    //           {
+    //             $set: {
+    //               originalUrl: actorImageData.originalUrl,
+    //               newFileName: actorImageData.newFileName,
+    //               path: actorImageData.path,
+    //               uuid: actorImageData.uuid,
+    //               actorId: actor.id,
+    //               lastUpdated: new Date(),
+    //             },
+    //           },
+    //           { upsert: true }
+    //         );
+    //         console.log(
+    //           `Saved image data for actor ${actor.id} to images collection`
+    //         );
+    //       }
+    //     }
+    //   }
+    // }
   }
+  console.log(`Saved ${movies.length} movies to MongoDB`);
 }
 
 async function batchJob() {
   console.log("Starting batch job to pre-compile movie data...");
-  let currentPage = 1;
-  let totalPages = 1;
 
-  while (currentPage <= totalPages && currentPage <= MAX_PAGES) {
-    console.log(`Fetching page ${currentPage} of ${totalPages}...`);
-    const data = await fetchMovies(currentPage);
-    totalPages = Math.min(data.total_pages, MAX_PAGES);
+  ctr.page = 1;
+  ctr.total_pages = 500;
+
+  while (ctr.page < ctr.total_pages ) {
+    const data = await fetchMovies(ctr.page);
+
+    // if (!ctr.total_pages) {
+    //   ctr.total_pages = data.total_pages;
+    // }
+
+    if (ctr.page !== data.page) {
+      console.error(`${ctr.page} !== ${data.page}`);
+      break;
+    }
+
+    // if (ctr.total_pages !== data.total_pages) {
+    //   console.error(`${ctr.total_pages} !== ${data.total_pages}`);
+    //   break;
+    // }
+
+    console.log(
+      `Fetching page ${ctr.page} of ${ctr.total_pages} of ${data.total_results}`
+    );
 
     if (data.results.length > 0) {
-      const moviesToProcess = data.results.slice(0, BATCH_SIZE);
+      const moviesToProcess = data.results;
       console.log(
-        `Processing ${moviesToProcess.length} movies from page ${currentPage}...`
+        `     - processing ${moviesToProcess.length} movies from page ${ctr.page}`
       );
       //const detailedMovies = await processMovies(moviesToProcess);
       await saveToMongoDB(moviesToProcess);
@@ -350,7 +384,7 @@ async function batchJob() {
       break; // Exit loop if no results are found on the current page
     }
 
-    currentPage++;
+    ctr.page++;
   }
 
   console.log("Batch job completed.");

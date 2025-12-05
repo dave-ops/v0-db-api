@@ -53,16 +53,21 @@ async function getMoviesMissingDetails(dbName = "maga-movies", collName = "movie
     const db = client.db(dbName);
     const collection = db.collection(collName);
 
-    // Find movies missing fullDetails, credits, providers, or keywords
-    const movies = await collection.find({
-      $or: [
-        { fullDetails: { $exists: false } },
-        { credits: { $exists: false } },
-        { providers: { $exists: false } },
-        { keywords: { $exists: false } },
-      ],
-    }).toArray();
-
+    // Find movies missing fullDetails, credits, providers, or keywords 594767
+    // const movies = await collection.find({
+    //   $or: [
+    //     { fullDetails: { $exists: false } },
+    //     { credits: { $exists: false } },
+    //     { providers: { $exists: false } },
+    //     { keywords: { $exists: false } },
+    //   ],
+    // }).toArray();
+    const movies = [
+      {
+        id: 594767,
+        title: 'test'
+      }
+    ]
     console.log(`Found ${movies.length} movies missing detailed data.`);
     return movies;
   } catch (error) {
@@ -113,6 +118,7 @@ async function batchJob() {
     for (const movie of movies) {
       console.log(`Processing movie ID ${movie.id} - ${movie.title || 'Unknown Title'}...`);
       const details = await fetchMovieDetails(movie.id);
+      console.log({ details })
       if (details) {
         await updateMovieDetails(movie.id, details);
       } else {
