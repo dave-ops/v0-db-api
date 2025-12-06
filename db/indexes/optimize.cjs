@@ -1,4 +1,4 @@
-// file: C:\_dev\repos\v0-db-api\db\scripts\optimize_indexes.js
+// file: C:\_dev\repos\v0-db-api\db\indexes\optimize.cjs
 const clientPromise = require("../../src/config/db");
 
 (async () => {
@@ -9,14 +9,20 @@ const clientPromise = require("../../src/config/db");
     console.log("Connected to MongoDB database: maga-movies");
 
     // Analyze the aggregation pipeline from movies_with_actors.cjs
-    console.log("Analyzing aggregation pipeline for 'movies_with_actors' view...");
+    console.log(
+      "Analyzing aggregation pipeline for 'movies_with_actors' view..."
+    );
 
     // The pipeline from movies_with_actors.cjs (copied for analysis)
     const pipeline = [
-      { $match: { "adult": false } },
+      { $match: { adult: false } },
       { $match: { "fullDetails.origin_country": "US" } },
       { $match: { poster_path: { $ne: null } } },
-      { $match: { release_date: { $lt: new Date().toISOString().split('T')[0] } } },
+      {
+        $match: {
+          release_date: { $lt: new Date().toISOString().split("T")[0] },
+        },
+      },
       {
         $addFields: {
           leadFemaleCast: {
@@ -25,11 +31,11 @@ const clientPromise = require("../../src/config/db");
                 $filter: {
                   input: "$credits.cast",
                   as: "c",
-                  cond: { $eq: ["$$c.gender", 1] }
-                }
+                  cond: { $eq: ["$$c.gender", 1] },
+                },
               },
-              0
-            ]
+              0,
+            ],
           },
           leadMaleCast: {
             $arrayElemAt: [
@@ -37,11 +43,11 @@ const clientPromise = require("../../src/config/db");
                 $filter: {
                   input: "$credits.cast",
                   as: "c",
-                  cond: { $eq: ["$$c.gender", 2] }
-                }
+                  cond: { $eq: ["$$c.gender", 2] },
+                },
               },
-              0
-            ]
+              0,
+            ],
           },
           leadDirector: {
             $arrayElemAt: [
@@ -49,13 +55,13 @@ const clientPromise = require("../../src/config/db");
                 $filter: {
                   input: "$credits.crew",
                   as: "c",
-                  cond: { $eq: ["$$c.job", "Director"] }
-                }
+                  cond: { $eq: ["$$c.job", "Director"] },
+                },
               },
-              0
-            ]
-          }
-        }
+              0,
+            ],
+          },
+        },
       },
       { $match: { leadFemaleCast: { $ne: null } } },
       {
@@ -65,34 +71,36 @@ const clientPromise = require("../../src/config/db");
           leadActorId: "$leadMaleCast.id",
           leadActorName: "$leadMaleCast.name",
           leadDirectorId: "$leadDirector.id",
-          leadDirectorName: "$leadDirector.name"
-        }
+          leadDirectorName: "$leadDirector.name",
+        },
       },
       {
         $lookup: {
           from: "actors",
           localField: "leadActressId",
           foreignField: "id",
-          as: "leadActressDoc"
-        }
+          as: "leadActressDoc",
+        },
       },
-      { $unwind: { path: "$leadActressDoc", preserveNullAndEmptyArrays: true } },
+      {
+        $unwind: { path: "$leadActressDoc", preserveNullAndEmptyArrays: true },
+      },
       {
         $lookup: {
           from: "actors",
           localField: "leadActorId",
           foreignField: "id",
-          as: "leadActorDoc"
-        }
+          as: "leadActorDoc",
+        },
       },
       { $unwind: { path: "$leadActorDoc", preserveNullAndEmptyArrays: true } },
       {
         $match: {
           $or: [
             { leadActressDoc: null },
-            { "leadActressDoc.ethnicity": "caucasian" }
-          ]
-        }
+            { "leadActressDoc.ethnicity": "caucasian" },
+          ],
+        },
       },
       {
         $addFields: {
@@ -102,28 +110,28 @@ const clientPromise = require("../../src/config/db");
             name: "$leadActressName",
             ethnicity: { $ifNull: ["$leadActressDoc.ethnicity", null] },
             hot_score: { $ifNull: ["$leadActressDoc.hotScore", null] },
-            hair_color: { $ifNull: ["$leadActressDoc.hairColor", null] }
+            hair_color: { $ifNull: ["$leadActressDoc.hairColor", null] },
           },
           leadMaleInfo: {
             id: "$leadActorId",
             name: "$leadActorName",
             ethnicity: { $ifNull: ["$leadActorDoc.ethnicity", null] },
             hot_score: { $ifNull: ["$leadActorDoc.hotScore", null] },
-            hair_color: { $ifNull: ["$leadActorDoc.hairColor", null] }
+            hair_color: { $ifNull: ["$leadActorDoc.hairColor", null] },
           },
           leadDirectorInfo: {
             id: "$leadDirectorId",
-            name: "$leadDirectorName"
-          }
-        }
+            name: "$leadDirectorName",
+          },
+        },
       },
       {
         $lookup: {
           from: "actors",
           localField: "credits.cast.id",
           foreignField: "id",
-          as: "matchingActors"
-        }
+          as: "matchingActors",
+        },
       },
       {
         $project: {
@@ -137,8 +145,8 @@ const clientPromise = require("../../src/config/db");
             $map: {
               input: "$keywords",
               as: "keyword",
-              in: "$$keyword.id"
-            }
+              in: "$$keyword.id",
+            },
           },
           leadFemaleInfo: 1,
           leadMaleInfo: 1,
@@ -149,15 +157,15 @@ const clientPromise = require("../../src/config/db");
             $map: {
               input: "$fullDetails.production_companies",
               as: "studio",
-              in: "$$studio.id"
-            }
+              in: "$$studio.id",
+            },
           },
           actor_ids: {
             $map: {
               input: "$credits.cast",
               as: "actor",
-              in: "$$actor.id"
-            }
+              in: "$$actor.id",
+            },
           },
           matchingActors: {
             $map: {
@@ -165,13 +173,13 @@ const clientPromise = require("../../src/config/db");
               as: "a",
               in: {
                 id: "$$a.id",
-                hotScore: "$$a.hotScore"
-              }
-            }
-          }
-        }
+                hotScore: "$$a.hotScore",
+              },
+            },
+          },
+        },
       },
-      { $sort: { release_date: -1 } }
+      { $sort: { release_date: -1 } },
     ];
 
     // Identify fields used in $match, $sort, and $lookup for indexing
@@ -180,23 +188,23 @@ const clientPromise = require("../../src/config/db");
     // Analyze $match stages for filter fields
     pipeline.forEach((stage, index) => {
       if (stage.$match) {
-        Object.keys(stage.$match).forEach(field => {
-          if (field !== '$or') {
+        Object.keys(stage.$match).forEach((field) => {
+          if (field !== "$or") {
             recommendedIndexes.push({
               collection: "movies",
               field,
-              reason: `Used in $match filter at stage ${index}`
+              reason: `Used in $match filter at stage ${index}`,
             });
           } else {
             // Handle $or conditions
             const orConditions = stage.$match.$or;
             if (Array.isArray(orConditions)) {
-              orConditions.forEach(condition => {
-                Object.keys(condition).forEach(orField => {
+              orConditions.forEach((condition) => {
+                Object.keys(condition).forEach((orField) => {
                   recommendedIndexes.push({
                     collection: "movies",
                     field: orField,
-                    reason: `Used in $match $or filter at stage ${index}`
+                    reason: `Used in $match $or filter at stage ${index}`,
                   });
                 });
               });
@@ -209,11 +217,11 @@ const clientPromise = require("../../src/config/db");
     // Analyze $sort stages
     pipeline.forEach((stage, index) => {
       if (stage.$sort) {
-        Object.keys(stage.$sort).forEach(field => {
+        Object.keys(stage.$sort).forEach((field) => {
           recommendedIndexes.push({
             collection: "movies",
             field,
-            reason: `Used in $sort at stage ${index}`
+            reason: `Used in $sort at stage ${index}`,
           });
         });
       }
@@ -225,12 +233,12 @@ const clientPromise = require("../../src/config/db");
         recommendedIndexes.push({
           collection: stage.$lookup.from,
           field: stage.$lookup.foreignField,
-          reason: `Used in $lookup foreignField at stage ${index}`
+          reason: `Used in $lookup foreignField at stage ${index}`,
         });
         recommendedIndexes.push({
           collection: "movies",
           field: stage.$lookup.localField,
-          reason: `Used in $lookup localField at stage ${index}`
+          reason: `Used in $lookup localField at stage ${index}`,
         });
       }
     });
@@ -244,29 +252,77 @@ const clientPromise = require("../../src/config/db");
 
     // For 'movies' collection
     const movieIndexes = recommendedIndexes
-      .filter(idx => idx.collection === "movies")
-      .map(idx => ({ key: { [idx.field]: 1 }, name: `idx_${idx.field.replace(/\./g, '_')}` }));
+      .filter((idx) => idx.collection === "movies")
+      .map((idx) => ({
+        key: { [idx.field]: 1 },
+        name: `idx_${idx.field.replace(/\./g, "_")}`,
+      }));
 
     for (const index of movieIndexes) {
       try {
-        await db.collection("movies").createIndex(index.key, { name: index.name });
+        // Check for existing indexes with different names but same key
+        const existingIndexes = await db.collection("movies").indexes();
+        const keyString = JSON.stringify(index.key);
+        const conflictingIndex = existingIndexes.find(
+          (existing) =>
+            JSON.stringify(existing.key) === keyString &&
+            existing.name !== index.name
+        );
+
+        if (conflictingIndex) {
+          console.log(
+            `Dropping conflicting index: ${conflictingIndex.name} for key: ${keyString}`
+          );
+          await db.collection("movies").dropIndex(conflictingIndex.name);
+        }
+
+        await db
+          .collection("movies")
+          .createIndex(index.key, { name: index.name });
         console.log(`Created index on movies: ${index.name}`);
       } catch (err) {
-        console.error(`Failed to create index on movies: ${index.name}`, err.message);
+        console.error(
+          `Failed to create index on movies: ${index.name}`,
+          err.message
+        );
       }
     }
 
     // For 'actors' collection
     const actorIndexes = recommendedIndexes
-      .filter(idx => idx.collection === "actors")
-      .map(idx => ({ key: { [idx.field]: 1 }, name: `idx_${idx.field.replace(/\./g, '_')}` }));
+      .filter((idx) => idx.collection === "actors")
+      .map((idx) => ({
+        key: { [idx.field]: 1 },
+        name: `idx_${idx.field.replace(/\./g, "_")}`,
+      }));
 
     for (const index of actorIndexes) {
       try {
-        await db.collection("actors").createIndex(index.key, { name: index.name });
+        // Check for existing indexes with different names but same key
+        const existingIndexes = await db.collection("actors").indexes();
+        const keyString = JSON.stringify(index.key);
+        const conflictingIndex = existingIndexes.find(
+          (existing) =>
+            JSON.stringify(existing.key) === keyString &&
+            existing.name !== index.name
+        );
+
+        if (conflictingIndex) {
+          console.log(
+            `Dropping conflicting index: ${conflictingIndex.name} for key: ${keyString}`
+          );
+          await db.collection("actors").dropIndex(conflictingIndex.name);
+        }
+
+        await db
+          .collection("actors")
+          .createIndex(index.key, { name: index.name });
         console.log(`Created index on actors: ${index.name}`);
       } catch (err) {
-        console.error(`Failed to create index on actors: ${index.name}`, err.message);
+        console.error(
+          `Failed to create index on actors: ${index.name}`,
+          err.message
+        );
       }
     }
 

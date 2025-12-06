@@ -162,7 +162,27 @@ const clientPromise = require("../../src/config/db");
             id: 1,
             title: 1,
             poster_path: 1,
-            release_date: 1,
+            release_date: 1,                        
+            release_date_id: "$release_dates.id",
+            release: {
+              $let: {
+                vars: {
+                  usEntry: {
+                    $arrayElemAt: [
+                      {
+                        $filter: {
+                          input: "$release_dates.results",
+                          cond: { $eq: ["$$this.iso_3166_1", "US"] }
+                        }
+                      },
+                      0
+                    ]
+                  }
+                },
+                in: { $ifNull: ["$$usEntry.release_dates", []] }
+              }
+            },
+
             vote_average: 1,
             genre_ids: "$genre_ids",
             keyword_ids: {
