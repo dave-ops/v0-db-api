@@ -28,10 +28,11 @@ const ctr = {
   total_results: 0,
   total_pages: 0,
   release_date: '',
-  last_release_date: '2019-04-19',
+  last_release_date: '2024-11-09',
 };
 
-const today = new Date().toISOString().split("T")[0]; // e.g., "2025-12-04"
+const utc = new Date().toISOString();
+const today = utc.split("T")[0]; // e.g., "2025-12-04"
 const minDate = "2010-01-01";
 
 // Ensure the base image storage directory exists
@@ -91,7 +92,7 @@ async function fetchMovies(p) {
       api_key: TMDB_API_KEY,
       page: ctr.page,
       sort_by: "primary_release_date.desc",
-      with_origin_country: "US",
+      // with_origin_country: "CA",
       //"primary_release_date.gte": minDate,
       "primary_release_date.lte": ctr.last_release_date,
       include_adult: false,
@@ -273,7 +274,7 @@ async function saveToMongoDB(
 
   for (const movie of movies) {
     // Save movie data
-    //delete movie.overview;
+    movie.updated_utc =  utc;
 
     ctr.release_date = movie.release_date;
     await movieCollection.updateOne(
@@ -354,19 +355,10 @@ async function batchJob() {
   while (ctr.page < ctr.total_pages ) {
     const data = await fetchMovies(ctr.page);
 
-    // if (!ctr.total_pages) {
-    //   ctr.total_pages = data.total_pages;
-    // }
-
     if (ctr.page !== data.page) {
       console.error(`${ctr.page} !== ${data.page}`);
       break;
     }
-
-    // if (ctr.total_pages !== data.total_pages) {
-    //   console.error(`${ctr.total_pages} !== ${data.total_pages}`);
-    //   break;
-    // }
 
     console.log(
       `Fetching page ${ctr.page} of ${ctr.total_pages} of ${data.total_results}`

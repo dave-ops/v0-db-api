@@ -19,6 +19,7 @@ const clientPromise = require("../../src/config/db");
     await db.createCollection("movies_with_lead_caucasian_actress", {
       viewOn: "movies",
       pipeline: [
+        { $match: { "adult": false } },
         { $match: { "fullDetails.origin_country": "US" } },
         { $match: { poster_path: { $ne: null } } },
         { $match: { release_date: { $lt: new Date().toISOString().split('T')[0] } } },
@@ -165,6 +166,20 @@ const clientPromise = require("../../src/config/db");
             leadDirectorInfo: 1,
             needsEthnicityFix: 1,
             providers: { results: { US: "$providers.results.US" } },
+            studio_ids: {
+              $map: {
+                input: "$fullDetails.production_companies",
+                as: "studio",
+                in: "$$studio.id"
+              }
+            },
+            actor_ids: {
+              $map: {
+                input: "$credits.cast",
+                as: "actor",
+                in: "$$actor.id"
+              }
+            },
             matchingActors: {
               $map: {
                 input: "$matchingActors",

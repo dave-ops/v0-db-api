@@ -54,20 +54,15 @@ async function getMoviesMissingDetails(dbName = "maga-movies", collName = "movie
     const collection = db.collection(collName);
 
     // Find movies missing fullDetails, credits, providers, or keywords 594767
-    // const movies = await collection.find({
-    //   $or: [
-    //     { fullDetails: { $exists: false } },
-    //     { credits: { $exists: false } },
-    //     { providers: { $exists: false } },
-    //     { keywords: { $exists: false } },
-    //   ],
-    // }).toArray();
-    const movies = [
-      {
-        id: 594767,
-        title: 'test'
-      }
-    ]
+    const movies = await collection.find({
+      $or: [
+        { fullDetails: { $exists: false } },
+        { credits: { $exists: false } },
+        { providers: { $exists: false } },
+        { keywords: { $exists: false } },
+      ],
+    }).toArray();
+
     console.log(`Found ${movies.length} movies missing detailed data.`);
     return movies;
   } catch (error) {
