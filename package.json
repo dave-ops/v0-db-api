@@ -8,7 +8,9 @@
     "job:movie": "node src/batch_jobs/movieJob.js",
     "job:details": "node src/batch_jobs/movieDetailJob.js",
     "job:country": "node src/batch_jobs/countryJob.js",
+    "job:copy_views": "node src/batch_jobs/moviesWithDetailsJob.js",
     "db:indexes": "node db/indexes/optimize.cjs",
+    "db:keywords": "node db/views/keywords.cjs",
     "db:movies": "node db/views/movies_with_actors.cjs",
     "db:genres": "node db/views/genres.cjs"
   },

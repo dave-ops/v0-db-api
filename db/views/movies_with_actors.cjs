@@ -7,6 +7,14 @@ const clientPromise = require("../../src/config/db");
     client = await clientPromise;
     const db = client.db("maga-movies");
 
+    // Step 1: Fetch keyword IDs that contain 'gbt' in their name (case-insensitive)
+    const keywordsCollection = db.collection("keywords");
+    const gbtKeywords = await keywordsCollection
+      .find({ name: { $regex: "gbt", $options: "i" } })
+      .toArray();
+    const gbtKeywordIds = gbtKeywords.map(keyword => keyword.id);
+    console.log(`Found ${gbtKeywordIds.length} keywords with 'gbt' in name.`);
+
     // Drop the existing view if it exists
     try {
       await db.collection("movies_with_lead_caucasian_actress").drop();
@@ -23,6 +31,9 @@ const clientPromise = require("../../src/config/db");
         { $match: { "fullDetails.origin_country": "US" } },
         { $match: { poster_path: { $ne: null } } },
         { $match: { release_date: { $lt: new Date().toISOString().split('T')[0] } } },
+
+        // Exclude movies with specific keywords (e.g., lgbt, coming out)
+        { $match: { "keywords.id": { $nin: gbtKeywordIds } } },
 
         // Extract highest-billed female actress
         {

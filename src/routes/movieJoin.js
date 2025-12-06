@@ -9,7 +9,7 @@ router.get("/movies-with-actors", async (req, res) => {
   try {
     const client = await clientPromise;
     const db = client.db("maga-movies");
-    const collection = db.collection("movies_with_lead_caucasian_actress");
+    const collection = db.collection("movies_with_details");
 
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
