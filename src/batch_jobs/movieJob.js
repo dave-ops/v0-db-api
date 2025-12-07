@@ -28,12 +28,11 @@ const ctr = {
   total_results: 0,
   total_pages: 0,
   release_date: '',
-  last_release_date: '2024-11-09',
+  last_release_date: '2012-12-31',
 };
 
 const utc = new Date().toISOString();
 const today = utc.split("T")[0]; // e.g., "2025-12-04"
-const minDate = "2010-01-01";
 
 // Ensure the base image storage directory exists
 if (!fs.existsSync(IMAGE_STORAGE_PATH)) {
@@ -274,7 +273,7 @@ async function saveToMongoDB(
 
   for (const movie of movies) {
     // Save movie data
-    movie.updated_utc =  utc;
+    movie.created_utc =  utc;
 
     ctr.release_date = movie.release_date;
     await movieCollection.updateOne(

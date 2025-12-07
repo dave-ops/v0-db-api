@@ -12,7 +12,7 @@ const clientPromise = require("../../src/config/db");
     const gbtKeywords = await keywordsCollection
       .find({ name: { $regex: "gbt", $options: "i" } })
       .toArray();
-    const gbtKeywordIds = gbtKeywords.map(keyword => keyword.id);
+    const gbtKeywordIds = gbtKeywords.map((keyword) => keyword.id);
     console.log(`Found ${gbtKeywordIds.length} keywords with 'gbt' in name.`);
 
     // Drop the existing view if it exists
@@ -27,11 +27,15 @@ const clientPromise = require("../../src/config/db");
     await db.createCollection("movies_with_lead_caucasian_actress", {
       viewOn: "movies",
       pipeline: [
-        { $match: { "adult": false } },
+        { $match: { adult: false } },
         { $match: { "fullDetails.origin_country": "US" } },
         { $match: { "providers.results.US": { $ne: null } } },
         { $match: { poster_path: { $ne: null } } },
-        { $match: { release_date: { $lt: new Date().toISOString().split('T')[0] } } },
+        {
+          $match: {
+            release_date: { $lt: new Date().toISOString().split("T")[0] },
+          },
+        },
 
         // Exclude movies with specific keywords (e.g., lgbt, coming out)
         { $match: { "keywords.id": { $nin: gbtKeywordIds } } },
@@ -45,11 +49,11 @@ const clientPromise = require("../../src/config/db");
                   $filter: {
                     input: "$credits.cast",
                     as: "c",
-                    cond: { $eq: ["$$c.gender", 1] }
-                  }
+                    cond: { $eq: ["$$c.gender", 1] },
+                  },
                 },
-                0
-              ]
+                0,
+              ],
             },
             leadMaleCast: {
               $arrayElemAt: [
@@ -57,11 +61,11 @@ const clientPromise = require("../../src/config/db");
                   $filter: {
                     input: "$credits.cast",
                     as: "c",
-                    cond: { $eq: ["$$c.gender", 2] }
-                  }
+                    cond: { $eq: ["$$c.gender", 2] },
+                  },
                 },
-                0
-              ]
+                0,
+              ],
             },
             leadDirector: {
               $arrayElemAt: [
@@ -69,13 +73,13 @@ const clientPromise = require("../../src/config/db");
                   $filter: {
                     input: "$credits.crew",
                     as: "c",
-                    cond: { $eq: ["$$c.job", "Director"] }
-                  }
+                    cond: { $eq: ["$$c.job", "Director"] },
+                  },
                 },
-                0
-              ]
-            }
-          }
+                0,
+              ],
+            },
+          },
         },
         { $match: { leadFemaleCast: { $ne: null } } },
 
@@ -86,8 +90,8 @@ const clientPromise = require("../../src/config/db");
             leadActorId: "$leadMaleCast.id",
             leadActorName: "$leadMaleCast.name",
             leadDirectorId: "$leadDirector.id",
-            leadDirectorName: "$leadDirector.name"
-          }
+            leadDirectorName: "$leadDirector.name",
+          },
         },
 
         // Join with custom actors collection for female lead
@@ -96,10 +100,15 @@ const clientPromise = require("../../src/config/db");
             from: "actors",
             localField: "leadActressId",
             foreignField: "id",
-            as: "leadActressDoc"
-          }
+            as: "leadActressDoc",
+          },
         },
-        { $unwind: { path: "$leadActressDoc", preserveNullAndEmptyArrays: true } },
+        {
+          $unwind: {
+            path: "$leadActressDoc",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
 
         // Join with custom actors collection for male lead
         {
@@ -107,19 +116,21 @@ const clientPromise = require("../../src/config/db");
             from: "actors",
             localField: "leadActorId",
             foreignField: "id",
-            as: "leadActorDoc"
-          }
+            as: "leadActorDoc",
+          },
         },
-        { $unwind: { path: "$leadActorDoc", preserveNullAndEmptyArrays: true } },
+        {
+          $unwind: { path: "$leadActorDoc", preserveNullAndEmptyArrays: true },
+        },
 
         // CRITICAL FILTER: only caucasian OR missing (to be fixed) for female lead
         {
           $match: {
             $or: [
               { leadActressDoc: null },
-              { "leadActressDoc.ethnicity": "caucasian" }
-            ]
-          }
+              { "leadActressDoc.ethnicity": "caucasian" },
+            ],
+          },
         },
 
         // Helpful flags + enriched lead actress info
@@ -129,22 +140,35 @@ const clientPromise = require("../../src/config/db");
             leadFemaleInfo: {
               id: "$leadActressId",
               name: "$leadActressName",
+              profile_path: "$credits.cast.profile_path",
               ethnicity: { $ifNull: ["$leadActressDoc.ethnicity", null] },
               hot_score: { $ifNull: ["$leadActressDoc.hotScore", null] },
-              hair_color: { $ifNull: ["$leadActressDoc.hairColor", null] }
+              hair_color: { $ifNull: ["$leadActressDoc.hairColor", null] },
+              height: { $ifNull: ["$leadActressDoc.heightRange", null] },
+              weight: { $ifNull: ["$leadActressDoc.weightRange", null] },
+              is_woke: false,
+              has_tds: false,
             },
             leadMaleInfo: {
               id: "$leadActorId",
               name: "$leadActorName",
+              profile_path: "$credits.cast.profile_path",
               ethnicity: { $ifNull: ["$leadActorDoc.ethnicity", null] },
               hot_score: { $ifNull: ["$leadActorDoc.hotScore", null] },
-              hair_color: { $ifNull: ["$leadActorDoc.hairColor", null] }
+              hair_color: { $ifNull: ["$leadActorDoc.hairColor", null] },
+              height: { $ifNull: ["$leadActorDoc.heightRange", null] },
+              weight: { $ifNull: ["$leadActorDoc.weightRange", null] },
+              is_woke: false,
+              has_tds: false,
             },
             leadDirectorInfo: {
               id: "$leadDirectorId",
-              name: "$leadDirectorName"
-            }
-          }
+              profile_path: "$credits.cast.profile_path",
+              name: "$leadDirectorName",
+              is_woke: false,
+              has_tds: false,
+            },
+          },
         },
 
         // Optional: enrich all known actors (for hotScore sorting later)
@@ -153,8 +177,8 @@ const clientPromise = require("../../src/config/db");
             from: "actors",
             localField: "credits.cast.id",
             foreignField: "id",
-            as: "matchingActors"
-          }
+            as: "matchingActors",
+          },
         },
 
         // Final projection — only what frontend needs
@@ -163,7 +187,7 @@ const clientPromise = require("../../src/config/db");
             id: 1,
             title: 1,
             poster_path: 1,
-            release_date: 1,                        
+            release_date: 1,
             release_date_id: "$release_dates.id",
             release: {
               $let: {
@@ -173,23 +197,23 @@ const clientPromise = require("../../src/config/db");
                       {
                         $filter: {
                           input: "$release_dates.results",
-                          cond: { $eq: ["$$this.iso_3166_1", "US"] }
-                        }
+                          cond: { $eq: ["$$this.iso_3166_1", "US"] },
+                        },
                       },
-                      0
-                    ]
-                  }
+                      0,
+                    ],
+                  },
                 },
-                in: { $ifNull: ["$$usEntry.release_dates", []] }
-              }
+                in: { $ifNull: ["$$usEntry.release_dates", []] },
+              },
             },
             genre_ids: "$genre_ids",
             keyword_ids: {
               $map: {
                 input: "$keywords",
                 as: "keyword",
-                in: "$$keyword.id"
-              }
+                in: "$$keyword.id",
+              },
             },
             leadFemaleInfo: 1,
             leadMaleInfo: 1,
@@ -202,24 +226,26 @@ const clientPromise = require("../../src/config/db");
               $map: {
                 input: "$fullDetails.production_companies",
                 as: "studio",
-                in: "$$studio.id"
-              }
+                in: "$$studio.id",
+              },
             },
             actor_ids: {
               $map: {
                 input: "$credits.cast",
                 as: "actor",
-                in: "$$actor.id"
-              }
-            }
-          }
+                in: "$$actor.id",
+              },
+            },
+          },
         },
 
         // Always sort newest first (you can override in query if needed)
-        { $sort: { release_date: -1 } }
-      ]
+        { $sort: { release_date: -1 } },
+      ],
     });
-    console.log("View 'movies_with_lead_caucasian_actress' created successfully.");
+    console.log(
+      "View 'movies_with_lead_caucasian_actress' created successfully."
+    );
   } catch (error) {
     console.error("Error creating view:", error.message);
   } finally {
