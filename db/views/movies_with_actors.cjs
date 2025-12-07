@@ -140,7 +140,7 @@ const clientPromise = require("../../src/config/db");
             leadFemaleInfo: {
               id: "$leadActressId",
               name: "$leadActressName",
-              profile_path: "$credits.cast.profile_path",
+              profile_path: "$leadFemaleCast.profile_path",
               ethnicity: { $ifNull: ["$leadActressDoc.ethnicity", null] },
               hot_score: { $ifNull: ["$leadActressDoc.hotScore", null] },
               hair_color: { $ifNull: ["$leadActressDoc.hairColor", null] },
@@ -152,7 +152,7 @@ const clientPromise = require("../../src/config/db");
             leadMaleInfo: {
               id: "$leadActorId",
               name: "$leadActorName",
-              profile_path: "$credits.cast.profile_path",
+              profile_path: "$leadMaleCast.profile_path",
               ethnicity: { $ifNull: ["$leadActorDoc.ethnicity", null] },
               hot_score: { $ifNull: ["$leadActorDoc.hotScore", null] },
               hair_color: { $ifNull: ["$leadActorDoc.hairColor", null] },
@@ -163,7 +163,7 @@ const clientPromise = require("../../src/config/db");
             },
             leadDirectorInfo: {
               id: "$leadDirectorId",
-              profile_path: "$credits.cast.profile_path",
+              profile_path: "$leadDirector.profile_path",
               name: "$leadDirectorName",
               is_woke: false,
               has_tds: false,
