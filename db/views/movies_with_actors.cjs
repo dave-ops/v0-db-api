@@ -194,6 +194,9 @@ const clientPromise = require("../../src/config/db");
             leadFemaleInfo: 1,
             leadMaleInfo: 1,
             leadDirectorInfo: 1,
+            budget: "$fullDetails.budget",
+            revenue: "$fullDetails.revenue",
+            runtime: "$fullDetails.runtime",
             providers: "$providers.results.US",
             studio_ids: {
               $map: {
