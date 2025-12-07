@@ -13,8 +13,7 @@ async function saveToMongoDB(movies, dbName = "maga-movies", collName = "movies_
     console.log("Existing data in movies_with_details cleared.");
 
     // remove movies without providers
-    const valid = movies.find((f) => f.providers.results.length > 0);
-    console.log(`- valid providers: ${valid.length}`);
+    const valid = movies;
 
     // Insert all movies from the view
     if (movies.length > 0) {

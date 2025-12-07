@@ -183,8 +183,6 @@ const clientPromise = require("../../src/config/db");
                 in: { $ifNull: ["$$usEntry.release_dates", []] }
               }
             },
-
-            vote_average: 1,
             genre_ids: "$genre_ids",
             keyword_ids: {
               $map: {
@@ -196,7 +194,6 @@ const clientPromise = require("../../src/config/db");
             leadFemaleInfo: 1,
             leadMaleInfo: 1,
             leadDirectorInfo: 1,
-            needsEthnicityFix: 1,
             providers: "$providers.results.US",
             studio_ids: {
               $map: {
@@ -210,16 +207,6 @@ const clientPromise = require("../../src/config/db");
                 input: "$credits.cast",
                 as: "actor",
                 in: "$$actor.id"
-              }
-            },
-            matchingActors: {
-              $map: {
-                input: "$matchingActors",
-                as: "a",
-                in: {
-                  id: "$$a.id",
-                  hotScore: "$$a.hotScore"
-                }
               }
             }
           }
