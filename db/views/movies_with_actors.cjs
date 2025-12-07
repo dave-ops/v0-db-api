@@ -29,6 +29,7 @@ const clientPromise = require("../../src/config/db");
       pipeline: [
         { $match: { "adult": false } },
         { $match: { "fullDetails.origin_country": "US" } },
+        { $match: { "providers.results.US": { $ne: null } } },
         { $match: { poster_path: { $ne: null } } },
         { $match: { release_date: { $lt: new Date().toISOString().split('T')[0] } } },
 
@@ -196,7 +197,7 @@ const clientPromise = require("../../src/config/db");
             leadMaleInfo: 1,
             leadDirectorInfo: 1,
             needsEthnicityFix: 1,
-            providers: { results: { US: "$providers.results.US" } },
+            providers: "$providers.results.US",
             studio_ids: {
               $map: {
                 input: "$fullDetails.production_companies",

@@ -67,9 +67,10 @@ async function getMoviesMissingDetails(dbName = "maga-movies", collName = "movie
       $or: [
         { fullDetails: { $exists: false } },
         //{ credits: { $exists: false } },
-        //{ providers: { $exists: false } },
-        //{ keywords: { $exists: false } },
-        //{ release_dates: { $exists: false } },
+        { providers: { $exists: false } },
+        { keywords: { $exists: false } },
+        { release: { $exists: false } },
+        { updated_utc: { $exists: false } },
       ],
     })
     .skip(skip)
