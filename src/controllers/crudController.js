@@ -1,3 +1,4 @@
+// file: C:\_dev\repos\v0-db-api\src\controllers\crudController.js
 const clientPromise = require("../config/db");
 const { ObjectId } = require("mongodb");
 
@@ -17,10 +18,18 @@ const createOne = async (req, res) => {
       return res.status(400).json({ error: "Request body is required" });
     }
 
-    const coll = await getDbCollection(database, collection);
-    const result = await coll.insertOne(data);
+    // Automatically add created_utc timestamp
+    const now = new Date().toISOString();
+    const dataWithTimestamps = {
+      ...data,
+      created_utc: now,
+      updated_utc: now
+    };
 
-    res.status(201).json({ insertedId: result.insertedId, ...data });
+    const coll = await getDbCollection(database, collection);
+    const result = await coll.insertOne(dataWithTimestamps);
+
+    res.status(201).json({ insertedId: result.insertedId, ...dataWithTimestamps });
   } catch (err) {
     console.error("Error in createOne:", err);
     res.status(500).json({ error: err.message });
@@ -117,8 +126,14 @@ const updateOne = async (req, res) => {
       return res.status(400).json({ error: "Update data is required" });
     }
 
+    // Automatically add updated_utc timestamp
+    const updateWithTimestamp = {
+      ...update,
+      updated_utc: new Date().toISOString()
+    };
+
     const coll = await getDbCollection(database, collection);
-    const result = await coll.updateOne(filter, { $set: update });
+    const result = await coll.updateOne(filter, { $set: updateWithTimestamp });
 
     if (result.matchedCount === 0) {
       return res.status(404).json({ error: "Document not found" });
@@ -176,10 +191,18 @@ const upsertUserSettings = async (req, res) => {
         return;
     }
 
+    // Automatically add created_utc and updated_utc timestamps
+    const now = new Date().toISOString();
+    const dataWithTimestamps = {
+        ...data,
+        created_utc: now,
+        updated_utc: now
+    };
+
     const coll = await getDbCollection(database, collection);
     const result = await coll.updateOne(
         { id: walletAddress },
-        { $set: data },
+        { $set: dataWithTimestamps },
         { upsert: true }
     );
 
@@ -187,7 +210,7 @@ const upsertUserSettings = async (req, res) => {
         matchedCount: result.matchedCount,
         modifiedCount: result.modifiedCount,
         upsertedId: result.upsertedId,
-        settings: data
+        settings: dataWithTimestamps
     });
 };
 

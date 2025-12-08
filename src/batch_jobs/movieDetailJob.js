@@ -2,6 +2,7 @@
 const axios = require("axios");
 const clientPromise = require("../config/db");
 require("dotenv").config();
+const { prepareUpdateWithTimestamps } = require("../utils/timestampUtils");
 
 const TMDB_API_KEY = "62ce064dcb3a1b5e0c8a8726f1b741dd";
 const TMDB_BASE_URL = process.env.TMDB_BASE_URL || "https://api.themoviedb.org/3";
@@ -97,15 +98,17 @@ async function updateMovieDetails(movieId, details, dbName = "maga-movies", coll
       providers: details.providers,
       keywords: details.keywords,
       release_dates: details.release_dates, // Store the entire release_dates object
-      updated_utc: new Date().toISOString(),
     };
 
+    // Use the utility to prepare update operation with timestamps
+    const updateOperation = prepareUpdateWithTimestamps(updateData);
+
     console.log("\n# result")
-    console.log(JSON.stringify(updateData, null, 4));
+    console.log(JSON.stringify(updateOperation, null, 4));
 
     const result = await collection.updateOne(
       { id: movieId },
-      { $set: updateData }
+      updateOperation
     );
 
     console.log(`Updated movie ID ${movieId} with new details.`);

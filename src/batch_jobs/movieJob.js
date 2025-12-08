@@ -6,6 +6,7 @@ const sharp = require("sharp");
 const fs = require("fs");
 const path = require("path");
 require("dotenv").config();
+const { prepareUpsertWithTimestamps } = require("../utils/timestampUtils");
 
 const TMDB_API_KEY = "62ce064dcb3a1b5e0c8a8726f1b741dd";
 const API_READ_ACCESS_TOKEN =
@@ -28,7 +29,7 @@ const ctr = {
   total_results: 0,
   total_pages: 0,
   release_date: '',
-  last_release_date: '2012-12-31',
+  last_release_date: '2003-07-09',
 };
 
 const utc = new Date().toISOString();
@@ -272,13 +273,12 @@ async function saveToMongoDB(
   const imageCollection = db.collection("images");
 
   for (const movie of movies) {
-    // Save movie data
-    movie.created_utc =  utc;
+    // Use the utility to prepare data with timestamps for upsert
+    const updateData = prepareUpsertWithTimestamps(movie);
 
-    ctr.release_date = movie.release_date;
     await movieCollection.updateOne(
       { id: movie.id },
-      { $set: movie },
+      updateData,
       { upsert: true }
     );
 

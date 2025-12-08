@@ -1,6 +1,7 @@
 // file: C:\_dev\repos\v0-db-api\src\batch_jobs\countryJob.js
 const clientPromise = require("../config/db");
 require("dotenv").config();
+const { addTimestamps } = require("../utils/timestampUtils");
 
 // List of country codes and names
 const countryCodes = [
@@ -127,8 +128,9 @@ async function saveToMongoDB(countries, dbName = "maga-movies", collName = "coun
     // Clear existing data to avoid duplicates
     await collection.deleteMany({});
 
-    // Insert all countries
-    const result = await collection.insertMany(countries);
+    // Insert all countries with timestamps
+    const countriesWithTimestamps = countries.map(country => addTimestamps(country));
+    const result = await collection.insertMany(countriesWithTimestamps);
     console.log(`Inserted ${result.insertedCount} countries into MongoDB`);
   } catch (error) {
     console.error("Error saving to MongoDB:", error.message);
