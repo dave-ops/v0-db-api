@@ -9,6 +9,7 @@
     "job:details": "node --expose-gc src/batch_jobs/movieDetailJob.js",
     "job:country": "node src/batch_jobs/countryJob.js",
     "job:copy": "node src/batch_jobs/copy_view.js",
+    "job:names": "node src/batch_jobs/nameExtractionJob.js",
     "db:indexes": "node db/indexes/optimize.cjs",
     "db:keywords": "node db/views/keywords.cjs",
     "db:movies": "node db/views/movies_with_actors.cjs",
