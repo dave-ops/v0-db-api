@@ -112,16 +112,17 @@ async function extractNamesFromMovies(dbName = "maga-movies", moviesCollName = "
             },
             lastNames: {
               $addToSet: {
-                last: {
-                  name: {
-                    $arrayElemAt: [
-                      { $split: ["$name", " "] },
-                      { $subtract: [{ $size: { $split: ["$name", " "] } }, 1] }
-                    ]
-                  },
-                  actor: {
-                    actor_id: "$actor_id",
-                    profile_url: "$profile_path"
+                name: {
+                  $arrayElemAt: [
+                    { $split: ["$name", " "] },
+                    { $subtract: [{ $size: { $split: ["$name", " "] } }, 1] }
+                  ]
+                },
+                actors: {
+                  $cond: {
+                    if: { $and: [{ $ne: ["$actor_id", null] }, { $ne: ["$profile_path", null] }] },
+                    then: [{ id: "$actor_id", profile_path: "$profile_path" }],
+                    else: []
                   }
                 }
               }
